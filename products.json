@@ -1,0 +1,1274 @@
+{
+  "lastUpdated": "2025-01-18T00:00:00Z",
+  "categories": [
+    {
+      "id": "produce",
+      "name": "Fresh Produce",
+      "icon": "🥬"
+    },
+    {
+      "id": "dairy",
+      "name": "Dairy & Eggs",
+      "icon": "🥛"
+    },
+    {
+      "id": "meat-seafood",
+      "name": "Meat & Seafood",
+      "icon": "🥩"
+    },
+    {
+      "id": "bakery",
+      "name": "Bakery & Bread",
+      "icon": "🥖"
+    },
+    {
+      "id": "frozen",
+      "name": "Frozen Foods",
+      "icon": "🧊"
+    },
+    {
+      "id": "pantry",
+      "name": "Pantry Staples",
+      "icon": "🥫"
+    },
+    {
+      "id": "snacks",
+      "name": "Snacks & Chips",
+      "icon": "🍿"
+    },
+    {
+      "id": "beverages",
+      "name": "Beverages",
+      "icon": "☕"
+    },
+    {
+      "id": "wine-beer",
+      "name": "Wine, Beer & Spirits",
+      "icon": "🍷"
+    },
+    {
+      "id": "desserts",
+      "name": "Desserts & Sweets",
+      "icon": "🍫"
+    },
+    {
+      "id": "prepared",
+      "name": "Prepared Foods & Deli",
+      "icon": "🥗"
+    },
+    {
+      "id": "condiments",
+      "name": "Condiments & Sauces",
+      "icon": "🥫"
+    },
+    {
+      "id": "health-beauty",
+      "name": "Health & Beauty",
+      "icon": "🧴"
+    },
+    {
+      "id": "household",
+      "name": "Household & Cleaning",
+      "icon": "🧹"
+    }
+  ],
+  "products": [
+    {
+      "id": "prod-001",
+      "name": "Organic Bananas",
+      "category": "produce",
+      "price": 0.29,
+      "unit": "each",
+      "description": "Organic bananas sourced from Central America. Perfect for snacking, smoothies, or baking.",
+      "tags": ["organic", "fruit", "popular"]
+    },
+    {
+      "id": "prod-002",
+      "name": "Bag of Organic Baby Spinach",
+      "category": "produce",
+      "price": 2.99,
+      "unit": "6 oz bag",
+      "description": "Triple-washed organic baby spinach leaves. Ready to eat, great for salads or cooking.",
+      "tags": ["organic", "greens", "salad"]
+    },
+    {
+      "id": "prod-003",
+      "name": "Organic Avocados",
+      "category": "produce",
+      "price": 1.99,
+      "unit": "each",
+      "description": "Creamy Hass avocados. Perfect for guacamole, toast, or salads.",
+      "tags": ["organic", "fruit", "popular"]
+    },
+    {
+      "id": "prod-004",
+      "name": "Honeycrisp Apples",
+      "category": "produce",
+      "price": 2.99,
+      "unit": "lb",
+      "description": "Sweet and crisp Honeycrisp apples. A fan favorite for snacking.",
+      "tags": ["fruit", "popular"]
+    },
+    {
+      "id": "prod-005",
+      "name": "Organic Strawberries",
+      "category": "produce",
+      "price": 4.49,
+      "unit": "16 oz",
+      "description": "Sweet, juicy organic strawberries. Perfect for desserts or eating fresh.",
+      "tags": ["organic", "fruit", "berries"]
+    },
+    {
+      "id": "prod-006",
+      "name": "Organic Blueberries",
+      "category": "produce",
+      "price": 3.99,
+      "unit": "6 oz",
+      "description": "Plump organic blueberries packed with antioxidants.",
+      "tags": ["organic", "fruit", "berries"]
+    },
+    {
+      "id": "prod-007",
+      "name": "Organic Lemons",
+      "category": "produce",
+      "price": 0.39,
+      "unit": "each",
+      "description": "Bright, zesty organic lemons for cooking, baking, or beverages.",
+      "tags": ["organic", "citrus"]
+    },
+    {
+      "id": "prod-008",
+      "name": "Persian Cucumbers",
+      "category": "produce",
+      "price": 2.49,
+      "unit": "12 oz bag",
+      "description": "Crunchy, seedless Persian cucumbers. Great for snacking and salads.",
+      "tags": ["vegetables", "salad"]
+    },
+    {
+      "id": "prod-009",
+      "name": "Organic Grape Tomatoes",
+      "category": "produce",
+      "price": 3.49,
+      "unit": "pint",
+      "description": "Sweet organic grape tomatoes perfect for salads and snacking.",
+      "tags": ["organic", "vegetables"]
+    },
+    {
+      "id": "prod-010",
+      "name": "Sweet Potatoes",
+      "category": "produce",
+      "price": 1.29,
+      "unit": "lb",
+      "description": "Nutritious sweet potatoes perfect for baking, mashing, or roasting.",
+      "tags": ["vegetables", "root vegetables"]
+    },
+    {
+      "id": "prod-011",
+      "name": "Organic Carrots",
+      "category": "produce",
+      "price": 1.49,
+      "unit": "1 lb bag",
+      "description": "Fresh organic carrots. Great for snacking, cooking, or juicing.",
+      "tags": ["organic", "vegetables"]
+    },
+    {
+      "id": "prod-012",
+      "name": "Fresh Garlic",
+      "category": "produce",
+      "price": 0.59,
+      "unit": "head",
+      "description": "Aromatic garlic heads for all your cooking needs.",
+      "tags": ["vegetables", "cooking essentials"]
+    },
+    {
+      "id": "prod-013",
+      "name": "Organic Kale",
+      "category": "produce",
+      "price": 2.29,
+      "unit": "bunch",
+      "description": "Nutrient-rich organic kale. Perfect for salads, smoothies, or sauteing.",
+      "tags": ["organic", "greens"]
+    },
+    {
+      "id": "prod-014",
+      "name": "Mini Sweet Peppers",
+      "category": "produce",
+      "price": 3.49,
+      "unit": "1 lb bag",
+      "description": "Colorful mix of sweet mini peppers. Great for snacking or cooking.",
+      "tags": ["vegetables", "snacking"]
+    },
+    {
+      "id": "prod-015",
+      "name": "Organic Spring Mix",
+      "category": "produce",
+      "price": 3.99,
+      "unit": "5 oz",
+      "description": "Blend of organic baby lettuces and greens for fresh salads.",
+      "tags": ["organic", "salad", "greens"]
+    },
+    {
+      "id": "prod-020",
+      "name": "Organic Free-Range Eggs",
+      "category": "dairy",
+      "price": 5.99,
+      "unit": "dozen",
+      "description": "Cage-free, organic eggs from hens fed an organic vegetarian diet.",
+      "tags": ["organic", "eggs", "popular"]
+    },
+    {
+      "id": "prod-021",
+      "name": "Organic Whole Milk",
+      "category": "dairy",
+      "price": 5.49,
+      "unit": "half gallon",
+      "description": "Creamy organic whole milk from pasture-raised cows.",
+      "tags": ["organic", "milk"]
+    },
+    {
+      "id": "prod-022",
+      "name": "Triple Cream Brie",
+      "category": "dairy",
+      "price": 5.99,
+      "unit": "8 oz",
+      "description": "Luxuriously creamy French-style brie cheese.",
+      "tags": ["cheese", "specialty"]
+    },
+    {
+      "id": "prod-023",
+      "name": "Unexpected Cheddar",
+      "category": "dairy",
+      "price": 4.49,
+      "unit": "8 oz",
+      "description": "A unique cheddar with hints of Parmesan. Customer favorite!",
+      "tags": ["cheese", "popular", "specialty"]
+    },
+    {
+      "id": "prod-024",
+      "name": "Organic Greek Yogurt (Plain)",
+      "category": "dairy",
+      "price": 5.99,
+      "unit": "32 oz",
+      "description": "Thick, creamy organic Greek yogurt. High in protein.",
+      "tags": ["organic", "yogurt"]
+    },
+    {
+      "id": "prod-025",
+      "name": "Organic Unsalted Butter",
+      "category": "dairy",
+      "price": 5.49,
+      "unit": "1 lb",
+      "description": "Rich, creamy organic butter for baking and cooking.",
+      "tags": ["organic", "butter", "baking"]
+    },
+    {
+      "id": "prod-026",
+      "name": "Lite Shredded Mozzarella",
+      "category": "dairy",
+      "price": 3.29,
+      "unit": "8 oz",
+      "description": "Low-fat shredded mozzarella perfect for pizza and pasta.",
+      "tags": ["cheese", "low-fat"]
+    },
+    {
+      "id": "prod-027",
+      "name": "Everything But the Bagel Cream Cheese",
+      "category": "dairy",
+      "price": 3.49,
+      "unit": "8 oz",
+      "description": "Cream cheese with the famous Everything But the Bagel seasoning.",
+      "tags": ["cheese", "popular", "specialty"]
+    },
+    {
+      "id": "prod-028",
+      "name": "Grass-Fed Cheddar",
+      "category": "dairy",
+      "price": 4.99,
+      "unit": "8 oz",
+      "description": "Sharp cheddar from grass-fed cows. Rich, complex flavor.",
+      "tags": ["cheese", "grass-fed"]
+    },
+    {
+      "id": "prod-029",
+      "name": "Organic Heavy Cream",
+      "category": "dairy",
+      "price": 4.49,
+      "unit": "pint",
+      "description": "Rich organic heavy cream for cooking and whipping.",
+      "tags": ["organic", "cream"]
+    },
+    {
+      "id": "prod-030",
+      "name": "Goat Cheese Logs",
+      "category": "dairy",
+      "price": 4.49,
+      "unit": "11 oz",
+      "description": "Tangy, creamy goat cheese in convenient log form.",
+      "tags": ["cheese", "specialty"]
+    },
+    {
+      "id": "prod-040",
+      "name": "Organic Grass-Fed Ground Beef 85/15",
+      "category": "meat-seafood",
+      "price": 8.99,
+      "unit": "lb",
+      "description": "Premium organic, grass-fed ground beef. Perfect for burgers and tacos.",
+      "tags": ["organic", "beef", "grass-fed"]
+    },
+    {
+      "id": "prod-041",
+      "name": "Organic Free-Range Chicken Breasts",
+      "category": "meat-seafood",
+      "price": 8.99,
+      "unit": "lb",
+      "description": "Boneless, skinless organic chicken breasts. Antibiotic-free.",
+      "tags": ["organic", "chicken", "popular"]
+    },
+    {
+      "id": "prod-042",
+      "name": "Wild Caught Salmon Fillets",
+      "category": "meat-seafood",
+      "price": 11.99,
+      "unit": "12 oz",
+      "description": "Premium wild-caught Alaskan salmon. Rich in omega-3s.",
+      "tags": ["seafood", "wild-caught", "healthy"]
+    },
+    {
+      "id": "prod-043",
+      "name": "Organic Ground Turkey",
+      "category": "meat-seafood",
+      "price": 6.99,
+      "unit": "lb",
+      "description": "Lean organic ground turkey for healthy meals.",
+      "tags": ["organic", "turkey", "lean"]
+    },
+    {
+      "id": "prod-044",
+      "name": "Uncured Apple Smoked Bacon",
+      "category": "meat-seafood",
+      "price": 5.99,
+      "unit": "12 oz",
+      "description": "Nitrate-free bacon with a subtle apple wood smoke flavor.",
+      "tags": ["bacon", "popular", "uncured"]
+    },
+    {
+      "id": "prod-045",
+      "name": "Raw Shrimp (Tail-On)",
+      "category": "meat-seafood",
+      "price": 8.99,
+      "unit": "lb",
+      "description": "Large, wild-caught shrimp. Peeled and deveined with tail-on.",
+      "tags": ["seafood", "wild-caught"]
+    },
+    {
+      "id": "prod-046",
+      "name": "Italian Style Pork Sausage",
+      "category": "meat-seafood",
+      "price": 4.99,
+      "unit": "16 oz",
+      "description": "Seasoned Italian pork sausage links. Great for pasta and grilling.",
+      "tags": ["pork", "sausage"]
+    },
+    {
+      "id": "prod-047",
+      "name": "Smoked Salmon",
+      "category": "meat-seafood",
+      "price": 7.99,
+      "unit": "4 oz",
+      "description": "Cold-smoked Atlantic salmon. Perfect for bagels and appetizers.",
+      "tags": ["seafood", "smoked"]
+    },
+    {
+      "id": "prod-048",
+      "name": "NY Strip Steak",
+      "category": "meat-seafood",
+      "price": 12.99,
+      "unit": "lb",
+      "description": "Premium USDA Choice NY strip steak. Perfect for grilling.",
+      "tags": ["beef", "steak"]
+    },
+    {
+      "id": "prod-060",
+      "name": "Sourdough Bread",
+      "category": "bakery",
+      "price": 3.99,
+      "unit": "loaf",
+      "description": "Traditional tangy sourdough with a crusty exterior and soft interior.",
+      "tags": ["bread", "popular"]
+    },
+    {
+      "id": "prod-061",
+      "name": "Pain Au Chocolat",
+      "category": "bakery",
+      "price": 4.49,
+      "unit": "4 pack",
+      "description": "Flaky French pastries filled with rich chocolate.",
+      "tags": ["pastry", "breakfast", "popular"]
+    },
+    {
+      "id": "prod-062",
+      "name": "Organic Multigrain Bread",
+      "category": "bakery",
+      "price": 4.49,
+      "unit": "loaf",
+      "description": "Hearty organic bread with 7 whole grains.",
+      "tags": ["bread", "organic", "whole grain"]
+    },
+    {
+      "id": "prod-063",
+      "name": "Croissants",
+      "category": "bakery",
+      "price": 4.99,
+      "unit": "4 pack",
+      "description": "Buttery, flaky French croissants. Fresh from the bakery.",
+      "tags": ["pastry", "breakfast"]
+    },
+    {
+      "id": "prod-064",
+      "name": "Everything Ciabatta Rolls",
+      "category": "bakery",
+      "price": 3.49,
+      "unit": "4 pack",
+      "description": "Crusty ciabatta topped with everything bagel seasoning.",
+      "tags": ["bread", "popular"]
+    },
+    {
+      "id": "prod-065",
+      "name": "Blueberry Muffins",
+      "category": "bakery",
+      "price": 4.49,
+      "unit": "4 pack",
+      "description": "Moist muffins loaded with fresh blueberries.",
+      "tags": ["muffins", "breakfast"]
+    },
+    {
+      "id": "prod-066",
+      "name": "Brioche Buns",
+      "category": "bakery",
+      "price": 3.99,
+      "unit": "6 pack",
+      "description": "Rich, buttery brioche hamburger buns.",
+      "tags": ["bread", "buns"]
+    },
+    {
+      "id": "prod-067",
+      "name": "Cinnamon Raisin Bagels",
+      "category": "bakery",
+      "price": 3.49,
+      "unit": "6 pack",
+      "description": "Soft bagels with cinnamon swirl and plump raisins.",
+      "tags": ["bagels", "breakfast"]
+    },
+    {
+      "id": "prod-068",
+      "name": "Focaccia Bread",
+      "category": "bakery",
+      "price": 3.99,
+      "unit": "each",
+      "description": "Italian flatbread with olive oil and sea salt.",
+      "tags": ["bread", "italian"]
+    },
+    {
+      "id": "prod-080",
+      "name": "Mandarin Orange Chicken",
+      "category": "frozen",
+      "price": 5.49,
+      "unit": "22 oz",
+      "description": "The #1 selling frozen item at TJ's! Crispy chicken in sweet mandarin sauce.",
+      "tags": ["frozen meals", "popular", "chicken"]
+    },
+    {
+      "id": "prod-081",
+      "name": "Cauliflower Gnocchi",
+      "category": "frozen",
+      "price": 2.99,
+      "unit": "12 oz",
+      "description": "Low-carb gnocchi made with cauliflower. Quick and easy meal.",
+      "tags": ["frozen", "popular", "low-carb"]
+    },
+    {
+      "id": "prod-082",
+      "name": "Butter Chicken with Basmati Rice",
+      "category": "frozen",
+      "price": 4.49,
+      "unit": "16 oz",
+      "description": "Creamy Indian butter chicken with aromatic basmati rice.",
+      "tags": ["frozen meals", "indian"]
+    },
+    {
+      "id": "prod-083",
+      "name": "Riced Cauliflower Stir Fry",
+      "category": "frozen",
+      "price": 3.29,
+      "unit": "12 oz",
+      "description": "Low-carb vegetable stir fry with riced cauliflower base.",
+      "tags": ["frozen", "low-carb", "vegetarian"]
+    },
+    {
+      "id": "prod-084",
+      "name": "Kung Pao Chicken",
+      "category": "frozen",
+      "price": 5.49,
+      "unit": "20 oz",
+      "description": "Spicy chicken with peanuts in a savory sauce.",
+      "tags": ["frozen meals", "asian"]
+    },
+    {
+      "id": "prod-085",
+      "name": "Hash Browns",
+      "category": "frozen",
+      "price": 2.49,
+      "unit": "10 count",
+      "description": "Crispy shredded potato hash brown patties.",
+      "tags": ["frozen", "breakfast"]
+    },
+    {
+      "id": "prod-086",
+      "name": "Chicken Tikka Masala",
+      "category": "frozen",
+      "price": 4.49,
+      "unit": "16 oz",
+      "description": "Tender chicken in creamy, spiced tomato sauce.",
+      "tags": ["frozen meals", "indian", "popular"]
+    },
+    {
+      "id": "prod-087",
+      "name": "Organic Açaí Puree Packets",
+      "category": "frozen",
+      "price": 4.99,
+      "unit": "4 pack",
+      "description": "Unsweetened organic açaí puree for smoothie bowls.",
+      "tags": ["frozen", "organic", "healthy"]
+    },
+    {
+      "id": "prod-088",
+      "name": "Gyoza Potstickers",
+      "category": "frozen",
+      "price": 3.99,
+      "unit": "16 oz",
+      "description": "Pork and vegetable dumplings. Pan fry or steam.",
+      "tags": ["frozen", "asian", "popular"]
+    },
+    {
+      "id": "prod-089",
+      "name": "Frozen Pizza - Margherita",
+      "category": "frozen",
+      "price": 4.99,
+      "unit": "12 inch",
+      "description": "Classic margherita pizza with fresh mozzarella and basil.",
+      "tags": ["frozen", "pizza"]
+    },
+    {
+      "id": "prod-090",
+      "name": "Tarte aux Fruits",
+      "category": "frozen",
+      "price": 7.99,
+      "unit": "each",
+      "description": "French fruit tart with pastry cream and seasonal fruits.",
+      "tags": ["frozen", "dessert"]
+    },
+    {
+      "id": "prod-091",
+      "name": "Frozen Cheese Pizza Bites",
+      "category": "frozen",
+      "price": 4.49,
+      "unit": "12 oz",
+      "description": "Bite-sized pizza snacks loaded with cheese.",
+      "tags": ["frozen", "snacks"]
+    },
+    {
+      "id": "prod-092",
+      "name": "Palak Paneer",
+      "category": "frozen",
+      "price": 3.99,
+      "unit": "10 oz",
+      "description": "Creamy spinach curry with paneer cheese.",
+      "tags": ["frozen meals", "indian", "vegetarian"]
+    },
+    {
+      "id": "prod-093",
+      "name": "Elote Corn Bites",
+      "category": "frozen",
+      "price": 3.99,
+      "unit": "11 oz",
+      "description": "Mexican street corn bites with cotija and lime.",
+      "tags": ["frozen", "appetizer", "popular"]
+    },
+    {
+      "id": "prod-110",
+      "name": "Organic Extra Virgin Olive Oil",
+      "category": "pantry",
+      "price": 7.99,
+      "unit": "16.9 oz",
+      "description": "Cold-pressed organic olive oil from Spain. Perfect for cooking and dressing.",
+      "tags": ["organic", "cooking essentials", "popular"]
+    },
+    {
+      "id": "prod-111",
+      "name": "Everything But The Bagel Seasoning",
+      "category": "pantry",
+      "price": 2.49,
+      "unit": "2.3 oz",
+      "description": "The legendary blend of sesame, poppy, garlic, onion, and salt.",
+      "tags": ["seasoning", "popular", "iconic"]
+    },
+    {
+      "id": "prod-112",
+      "name": "Organic Quinoa",
+      "category": "pantry",
+      "price": 4.99,
+      "unit": "16 oz",
+      "description": "Organic tri-color quinoa. Complete protein grain.",
+      "tags": ["organic", "grains", "healthy"]
+    },
+    {
+      "id": "prod-113",
+      "name": "Coconut Aminos",
+      "category": "pantry",
+      "price": 3.99,
+      "unit": "8.5 oz",
+      "description": "Soy-free alternative to soy sauce. Great for stir fries.",
+      "tags": ["gluten-free", "paleo"]
+    },
+    {
+      "id": "prod-114",
+      "name": "Organic Marinara Sauce",
+      "category": "pantry",
+      "price": 2.99,
+      "unit": "25 oz",
+      "description": "Classic Italian marinara made with organic tomatoes.",
+      "tags": ["organic", "pasta sauce"]
+    },
+    {
+      "id": "prod-115",
+      "name": "Raw Almond Butter",
+      "category": "pantry",
+      "price": 6.99,
+      "unit": "16 oz",
+      "description": "Creamy, unsalted raw almond butter. Just almonds!",
+      "tags": ["nut butter", "healthy"]
+    },
+    {
+      "id": "prod-116",
+      "name": "Organic Coconut Oil",
+      "category": "pantry",
+      "price": 5.99,
+      "unit": "16 oz",
+      "description": "Cold-pressed virgin coconut oil for cooking and baking.",
+      "tags": ["organic", "cooking essentials"]
+    },
+    {
+      "id": "prod-117",
+      "name": "Organic Brown Rice",
+      "category": "pantry",
+      "price": 3.49,
+      "unit": "2 lb",
+      "description": "Long grain organic brown rice. Nutty flavor and fluffy texture.",
+      "tags": ["organic", "grains"]
+    },
+    {
+      "id": "prod-118",
+      "name": "Organic Honey",
+      "category": "pantry",
+      "price": 6.99,
+      "unit": "12 oz",
+      "description": "Raw, unfiltered organic honey.",
+      "tags": ["organic", "sweetener"]
+    },
+    {
+      "id": "prod-119",
+      "name": "Organic Black Beans",
+      "category": "pantry",
+      "price": 0.99,
+      "unit": "15 oz can",
+      "description": "Organic black beans. No salt added.",
+      "tags": ["organic", "beans", "canned"]
+    },
+    {
+      "id": "prod-120",
+      "name": "Organic Chickpeas",
+      "category": "pantry",
+      "price": 0.99,
+      "unit": "15 oz can",
+      "description": "Organic garbanzo beans for salads, hummus, and more.",
+      "tags": ["organic", "beans", "canned"]
+    },
+    {
+      "id": "prod-121",
+      "name": "Organic Peanut Butter",
+      "category": "pantry",
+      "price": 2.99,
+      "unit": "16 oz",
+      "description": "Creamy organic peanut butter. Just peanuts and salt.",
+      "tags": ["organic", "nut butter"]
+    },
+    {
+      "id": "prod-122",
+      "name": "Trader Joe's Famous Flaxseed Tortilla Chips",
+      "category": "pantry",
+      "price": 2.99,
+      "unit": "12 oz",
+      "description": "Crispy tortilla chips with omega-rich flaxseed.",
+      "tags": ["chips", "popular"]
+    },
+    {
+      "id": "prod-140",
+      "name": "Peanut Butter Pretzels",
+      "category": "snacks",
+      "price": 2.99,
+      "unit": "16 oz",
+      "description": "Crunchy pretzels filled with creamy peanut butter.",
+      "tags": ["snacks", "popular"]
+    },
+    {
+      "id": "prod-141",
+      "name": "Dark Chocolate Peanut Butter Cups",
+      "category": "snacks",
+      "price": 4.49,
+      "unit": "12 oz",
+      "description": "Rich dark chocolate cups with creamy peanut butter filling.",
+      "tags": ["chocolate", "popular", "candy"]
+    },
+    {
+      "id": "prod-142",
+      "name": "Organic Popcorn with Olive Oil",
+      "category": "snacks",
+      "price": 2.49,
+      "unit": "5 oz",
+      "description": "Light, organic popcorn popped in olive oil.",
+      "tags": ["organic", "popcorn"]
+    },
+    {
+      "id": "prod-143",
+      "name": "Plantain Chips",
+      "category": "snacks",
+      "price": 2.29,
+      "unit": "6 oz",
+      "description": "Crispy, lightly salted plantain chips.",
+      "tags": ["chips", "snacks"]
+    },
+    {
+      "id": "prod-144",
+      "name": "Trail Mix with Chocolate Chips",
+      "category": "snacks",
+      "price": 5.99,
+      "unit": "16 oz",
+      "description": "Nuts, dried fruit, and chocolate chips. Perfect for hiking.",
+      "tags": ["nuts", "trail mix"]
+    },
+    {
+      "id": "prod-145",
+      "name": "Veggie Straws",
+      "category": "snacks",
+      "price": 2.99,
+      "unit": "7 oz",
+      "description": "Crispy vegetable-based straws. Light and crunchy.",
+      "tags": ["chips", "vegetarian"]
+    },
+    {
+      "id": "prod-146",
+      "name": "Speculoos Cookie Butter",
+      "category": "snacks",
+      "price": 3.99,
+      "unit": "14.1 oz",
+      "description": "Legendary Belgian cookie spread. Iconic TJ's product!",
+      "tags": ["popular", "iconic", "spread"]
+    },
+    {
+      "id": "prod-147",
+      "name": "Inner Peas",
+      "category": "snacks",
+      "price": 2.99,
+      "unit": "3 oz",
+      "description": "Crispy baked green pea snacks. Lightly salted.",
+      "tags": ["snacks", "healthy"]
+    },
+    {
+      "id": "prod-148",
+      "name": "Roasted & Salted Mixed Nuts",
+      "category": "snacks",
+      "price": 8.99,
+      "unit": "16 oz",
+      "description": "Premium mix of cashews, almonds, pecans, and more.",
+      "tags": ["nuts", "snacks"]
+    },
+    {
+      "id": "prod-149",
+      "name": "Sea Salt Brownie Bites",
+      "category": "snacks",
+      "price": 4.49,
+      "unit": "10 oz",
+      "description": "Rich, fudgy brownie bites with sea salt.",
+      "tags": ["chocolate", "dessert"]
+    },
+    {
+      "id": "prod-150",
+      "name": "Organic Corn Chip Dippers",
+      "category": "snacks",
+      "price": 2.49,
+      "unit": "9 oz",
+      "description": "Scoop-shaped organic corn chips for dipping.",
+      "tags": ["organic", "chips"]
+    },
+    {
+      "id": "prod-160",
+      "name": "Cold Brew Coffee Concentrate",
+      "category": "beverages",
+      "price": 7.99,
+      "unit": "32 oz",
+      "description": "Smooth, rich cold brew concentrate. Dilute to taste.",
+      "tags": ["coffee", "popular"]
+    },
+    {
+      "id": "prod-161",
+      "name": "Organic Green Tea",
+      "category": "beverages",
+      "price": 2.99,
+      "unit": "20 bags",
+      "description": "Light, refreshing organic green tea.",
+      "tags": ["organic", "tea"]
+    },
+    {
+      "id": "prod-162",
+      "name": "Sparkling Apple Cider",
+      "category": "beverages",
+      "price": 2.99,
+      "unit": "750 ml",
+      "description": "Festive sparkling apple cider. Non-alcoholic.",
+      "tags": ["sparkling", "non-alcoholic"]
+    },
+    {
+      "id": "prod-163",
+      "name": "Triple Ginger Brew",
+      "category": "beverages",
+      "price": 3.99,
+      "unit": "4 pack",
+      "description": "Spicy ginger beer with three types of ginger.",
+      "tags": ["ginger", "non-alcoholic"]
+    },
+    {
+      "id": "prod-164",
+      "name": "Organic Orange Juice (Not From Concentrate)",
+      "category": "beverages",
+      "price": 5.49,
+      "unit": "52 oz",
+      "description": "Fresh-squeezed organic orange juice. No pulp.",
+      "tags": ["organic", "juice", "breakfast"]
+    },
+    {
+      "id": "prod-165",
+      "name": "Sparkling Lemonade",
+      "category": "beverages",
+      "price": 2.99,
+      "unit": "750 ml",
+      "description": "Refreshing Italian-style sparkling lemonade.",
+      "tags": ["sparkling", "lemonade"]
+    },
+    {
+      "id": "prod-166",
+      "name": "Coconut Water",
+      "category": "beverages",
+      "price": 2.49,
+      "unit": "33.8 oz",
+      "description": "Pure, refreshing coconut water. Natural electrolytes.",
+      "tags": ["healthy", "hydration"]
+    },
+    {
+      "id": "prod-167",
+      "name": "Medium Roast Coffee",
+      "category": "beverages",
+      "price": 6.99,
+      "unit": "13 oz",
+      "description": "Smooth, balanced medium roast ground coffee.",
+      "tags": ["coffee", "ground"]
+    },
+    {
+      "id": "prod-168",
+      "name": "Oat Milk",
+      "category": "beverages",
+      "price": 3.49,
+      "unit": "32 oz",
+      "description": "Creamy, plant-based oat milk. Great for lattes.",
+      "tags": ["plant-based", "milk alternative"]
+    },
+    {
+      "id": "prod-180",
+      "name": "Charles Shaw Cabernet Sauvignon",
+      "category": "wine-beer",
+      "price": 3.99,
+      "unit": "750 ml",
+      "description": "The famous 'Two Buck Chuck' California Cabernet.",
+      "tags": ["wine", "red wine", "popular"]
+    },
+    {
+      "id": "prod-181",
+      "name": "Coastal Chardonnay",
+      "category": "wine-beer",
+      "price": 5.99,
+      "unit": "750 ml",
+      "description": "Crisp California Chardonnay with notes of apple and vanilla.",
+      "tags": ["wine", "white wine"]
+    },
+    {
+      "id": "prod-182",
+      "name": "Simpler Wines Rosé",
+      "category": "wine-beer",
+      "price": 4.99,
+      "unit": "4 pack cans",
+      "description": "Refreshing canned rosé. Perfect for picnics.",
+      "tags": ["wine", "rosé", "canned"]
+    },
+    {
+      "id": "prod-183",
+      "name": "Josephsbrau IPA",
+      "category": "wine-beer",
+      "price": 6.99,
+      "unit": "6 pack",
+      "description": "Hoppy, citrusy IPA brewed for Trader Joe's.",
+      "tags": ["beer", "IPA"]
+    },
+    {
+      "id": "prod-184",
+      "name": "Prosecco",
+      "category": "wine-beer",
+      "price": 6.99,
+      "unit": "750 ml",
+      "description": "Italian sparkling wine. Crisp and celebratory.",
+      "tags": ["wine", "sparkling"]
+    },
+    {
+      "id": "prod-200",
+      "name": "Sublime Ice Cream Sandwiches",
+      "category": "desserts",
+      "price": 3.99,
+      "unit": "4 pack",
+      "description": "Creamy vanilla ice cream between chocolate wafers.",
+      "tags": ["ice cream", "popular"]
+    },
+    {
+      "id": "prod-201",
+      "name": "Hold The Cone! Mini Ice Cream Cones",
+      "category": "desserts",
+      "price": 4.49,
+      "unit": "8 pack",
+      "description": "Adorable mini ice cream cones dipped in chocolate.",
+      "tags": ["ice cream", "popular"]
+    },
+    {
+      "id": "prod-202",
+      "name": "Belgian Dark Chocolate Bar",
+      "category": "desserts",
+      "price": 1.99,
+      "unit": "3.5 oz",
+      "description": "Rich, smooth Belgian dark chocolate. 72% cacao.",
+      "tags": ["chocolate", "dark chocolate"]
+    },
+    {
+      "id": "prod-203",
+      "name": "Chocolate Lava Cakes",
+      "category": "desserts",
+      "price": 4.49,
+      "unit": "2 pack",
+      "description": "Frozen lava cakes with molten chocolate center.",
+      "tags": ["frozen", "chocolate"]
+    },
+    {
+      "id": "prod-204",
+      "name": "Mochi Ice Cream",
+      "category": "desserts",
+      "price": 3.99,
+      "unit": "6 pack",
+      "description": "Soft mochi rice cakes filled with ice cream.",
+      "tags": ["ice cream", "asian", "popular"]
+    },
+    {
+      "id": "prod-205",
+      "name": "Jingle Jangle Holiday Mix",
+      "category": "desserts",
+      "price": 8.99,
+      "unit": "16 oz",
+      "description": "Seasonal mix of chocolate-covered pretzels, Joe-Joe's, and more.",
+      "tags": ["chocolate", "seasonal", "popular"]
+    },
+    {
+      "id": "prod-206",
+      "name": "Vanilla Bean Paste",
+      "category": "desserts",
+      "price": 6.99,
+      "unit": "3 oz",
+      "description": "Pure vanilla bean paste for baking. Specks of real vanilla.",
+      "tags": ["baking", "vanilla"]
+    },
+    {
+      "id": "prod-207",
+      "name": "Joe-Joe's Cookies (Chocolate)",
+      "category": "desserts",
+      "price": 2.99,
+      "unit": "10 oz",
+      "description": "TJ's version of the classic sandwich cookie.",
+      "tags": ["cookies", "popular"]
+    },
+    {
+      "id": "prod-220",
+      "name": "Greek Chickpea Salad",
+      "category": "prepared",
+      "price": 4.99,
+      "unit": "12 oz",
+      "description": "Mediterranean salad with chickpeas, feta, and olives.",
+      "tags": ["salad", "vegetarian"]
+    },
+    {
+      "id": "prod-221",
+      "name": "Chicken Caesar Salad Kit",
+      "category": "prepared",
+      "price": 4.99,
+      "unit": "12 oz",
+      "description": "Complete salad kit with grilled chicken and Caesar dressing.",
+      "tags": ["salad", "popular"]
+    },
+    {
+      "id": "prod-222",
+      "name": "Fresh Bruschetta",
+      "category": "prepared",
+      "price": 3.99,
+      "unit": "14 oz",
+      "description": "Fresh tomato bruschetta with basil and garlic.",
+      "tags": ["appetizer", "italian"]
+    },
+    {
+      "id": "prod-223",
+      "name": "Organic Hummus",
+      "category": "prepared",
+      "price": 3.49,
+      "unit": "16 oz",
+      "description": "Creamy organic hummus with tahini.",
+      "tags": ["organic", "dip", "popular"]
+    },
+    {
+      "id": "prod-224",
+      "name": "Tzatziki Dip",
+      "category": "prepared",
+      "price": 3.99,
+      "unit": "12 oz",
+      "description": "Cool, creamy Greek yogurt dip with cucumber.",
+      "tags": ["dip", "greek"]
+    },
+    {
+      "id": "prod-225",
+      "name": "Rotisserie Chicken",
+      "category": "prepared",
+      "price": 7.99,
+      "unit": "each",
+      "description": "Seasoned rotisserie chicken. Ready to eat!",
+      "tags": ["chicken", "popular", "ready-to-eat"]
+    },
+    {
+      "id": "prod-226",
+      "name": "Fresh Pizza Dough",
+      "category": "prepared",
+      "price": 1.99,
+      "unit": "16 oz",
+      "description": "Fresh, ready-to-use pizza dough. Just stretch and top!",
+      "tags": ["pizza", "dough"]
+    },
+    {
+      "id": "prod-227",
+      "name": "Pesto Genovese",
+      "category": "prepared",
+      "price": 3.99,
+      "unit": "8 oz",
+      "description": "Traditional basil pesto with pine nuts and Parmesan.",
+      "tags": ["italian", "sauce"]
+    },
+    {
+      "id": "prod-240",
+      "name": "Green Dragon Hot Sauce",
+      "category": "condiments",
+      "price": 3.49,
+      "unit": "5 oz",
+      "description": "Tangy, spicy green hot sauce. Cult following!",
+      "tags": ["hot sauce", "popular"]
+    },
+    {
+      "id": "prod-241",
+      "name": "Chili Onion Crunch",
+      "category": "condiments",
+      "price": 3.99,
+      "unit": "6 oz",
+      "description": "Crunchy chili crisp with fried onions and garlic.",
+      "tags": ["popular", "asian", "iconic"]
+    },
+    {
+      "id": "prod-242",
+      "name": "Organic Ketchup",
+      "category": "condiments",
+      "price": 2.49,
+      "unit": "24 oz",
+      "description": "Classic organic ketchup made with real sugar.",
+      "tags": ["organic", "condiment"]
+    },
+    {
+      "id": "prod-243",
+      "name": "Yellow Mustard",
+      "category": "condiments",
+      "price": 1.49,
+      "unit": "9 oz",
+      "description": "Classic yellow mustard for sandwiches and burgers.",
+      "tags": ["condiment"]
+    },
+    {
+      "id": "prod-244",
+      "name": "Organic Mayonnaise",
+      "category": "condiments",
+      "price": 4.49,
+      "unit": "16 oz",
+      "description": "Creamy organic mayonnaise with cage-free eggs.",
+      "tags": ["organic", "condiment"]
+    },
+    {
+      "id": "prod-245",
+      "name": "Sriracha Sauce",
+      "category": "condiments",
+      "price": 2.99,
+      "unit": "17 oz",
+      "description": "Spicy Thai chili sauce. Hot and garlicky.",
+      "tags": ["hot sauce", "asian"]
+    },
+    {
+      "id": "prod-246",
+      "name": "Balsamic Glaze",
+      "category": "condiments",
+      "price": 2.99,
+      "unit": "8.5 oz",
+      "description": "Sweet, thick balsamic reduction for drizzling.",
+      "tags": ["italian", "sauce"]
+    },
+    {
+      "id": "prod-247",
+      "name": "Tahini",
+      "category": "condiments",
+      "price": 3.99,
+      "unit": "10.6 oz",
+      "description": "Smooth sesame paste for hummus and dressings.",
+      "tags": ["middle eastern", "paste"]
+    },
+    {
+      "id": "prod-260",
+      "name": "Tea Tree Tingle Shampoo",
+      "category": "health-beauty",
+      "price": 3.99,
+      "unit": "16 oz",
+      "description": "Invigorating shampoo with tea tree, peppermint, and eucalyptus.",
+      "tags": ["hair care", "popular"]
+    },
+    {
+      "id": "prod-261",
+      "name": "Tea Tree Tingle Conditioner",
+      "category": "health-beauty",
+      "price": 3.99,
+      "unit": "16 oz",
+      "description": "Refreshing conditioner to pair with the shampoo.",
+      "tags": ["hair care", "popular"]
+    },
+    {
+      "id": "prod-262",
+      "name": "Coconut Body Butter",
+      "category": "health-beauty",
+      "price": 4.99,
+      "unit": "8 oz",
+      "description": "Rich, moisturizing body butter with coconut oil.",
+      "tags": ["skin care", "moisturizer"]
+    },
+    {
+      "id": "prod-263",
+      "name": "Rose Water Facial Toner",
+      "category": "health-beauty",
+      "price": 3.99,
+      "unit": "4 oz",
+      "description": "Gentle, refreshing rose water toner spray.",
+      "tags": ["skin care", "facial"]
+    },
+    {
+      "id": "prod-264",
+      "name": "Daily Facial Sunscreen SPF 40",
+      "category": "health-beauty",
+      "price": 5.99,
+      "unit": "1.7 oz",
+      "description": "Lightweight daily sunscreen with broad spectrum protection.",
+      "tags": ["skin care", "sun care"]
+    },
+    {
+      "id": "prod-265",
+      "name": "Vitamin E Oil",
+      "category": "health-beauty",
+      "price": 6.99,
+      "unit": "4 oz",
+      "description": "Pure vitamin E oil for skin and hair.",
+      "tags": ["skin care", "oil"]
+    },
+    {
+      "id": "prod-266",
+      "name": "Lavender Epsom Salt",
+      "category": "health-beauty",
+      "price": 4.99,
+      "unit": "4 lb",
+      "description": "Relaxing bath salt with calming lavender.",
+      "tags": ["bath", "relaxation"]
+    },
+    {
+      "id": "prod-280",
+      "name": "Multi-Surface Cleaner",
+      "category": "household",
+      "price": 3.99,
+      "unit": "32 oz",
+      "description": "All-purpose cleaner for kitchen and bathroom.",
+      "tags": ["cleaning", "multi-purpose"]
+    },
+    {
+      "id": "prod-281",
+      "name": "Dish Soap (Lavender)",
+      "category": "household",
+      "price": 2.99,
+      "unit": "25 oz",
+      "description": "Gentle dish soap with calming lavender scent.",
+      "tags": ["cleaning", "dishes"]
+    },
+    {
+      "id": "prod-282",
+      "name": "Recycled Paper Towels",
+      "category": "household",
+      "price": 3.99,
+      "unit": "2 roll",
+      "description": "100% recycled paper towels. Eco-friendly choice.",
+      "tags": ["paper products", "eco-friendly"]
+    },
+    {
+      "id": "prod-283",
+      "name": "Biodegradable Trash Bags",
+      "category": "household",
+      "price": 3.99,
+      "unit": "10 count",
+      "description": "13-gallon biodegradable trash bags.",
+      "tags": ["trash bags", "eco-friendly"]
+    },
+    {
+      "id": "prod-284",
+      "name": "Laundry Detergent (Free & Clear)",
+      "category": "household",
+      "price": 6.99,
+      "unit": "64 oz",
+      "description": "Fragrance-free, dye-free laundry detergent.",
+      "tags": ["laundry", "sensitive"]
+    },
+    {
+      "id": "prod-285",
+      "name": "Dryer Sheets",
+      "category": "household",
+      "price": 2.99,
+      "unit": "80 count",
+      "description": "Fabric softener sheets with fresh scent.",
+      "tags": ["laundry"]
+    }
+  ]
+}
