@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#c8102e" rx="64"/>
+  <text x="256" y="290" font-family="Arial, sans-serif" font-size="192" font-weight="bold" fill="white" text-anchor="middle">TJ</text>
+  <circle cx="160" cy="390" r="32" fill="white"/>
+  <circle cx="352" cy="390" r="32" fill="white"/>
+  <path d="M93 160 L120 160 L147 307 L365 307 L392 187 L160 187" stroke="white" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

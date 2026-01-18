@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#c8102e">
+    <title>TJ's Shopping List</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.svg">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="header-title">TJ's Shopping List</h1>
+                <button id="cartBtn" class="cart-btn" aria-label="View cart">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="9" cy="21" r="1"></circle>
+                        <circle cx="20" cy="21" r="1"></circle>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+                    <span id="cartCount" class="cart-count">0</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="shop">Shop</button>
+            <button class="nav-tab" data-tab="cart">Cart</button>
+            <button class="nav-tab" data-tab="history">History</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Shop Tab -->
+            <section id="shopTab" class="tab-content active">
+                <!-- Trip Status Banner -->
+                <div id="tripBanner" class="trip-banner hidden">
+                    <div class="trip-info">
+                        <span class="trip-label">Current Trip:</span>
+                        <span id="tripName" class="trip-name"></span>
+                    </div>
+                    <button id="endTripBtn" class="end-trip-btn">End Trip</button>
+                </div>
+
+                <!-- Start Trip Button -->
+                <div id="startTripSection" class="start-trip-section">
+                    <button id="startTripBtn" class="start-trip-btn">Start a Shopping Trip</button>
+                </div>
+
+                <!-- Category Grid -->
+                <div id="categoryGrid" class="category-grid hidden"></div>
+
+                <!-- Product List -->
+                <div id="productList" class="product-list hidden">
+                    <button id="backToCategories" class="back-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 12H5M12 19l-7-7 7-7"/>
+                        </svg>
+                        Categories
+                    </button>
+                    <h2 id="categoryTitle" class="category-title"></h2>
+                    <div id="products" class="products"></div>
+                </div>
+
+                <!-- Search Bar -->
+                <div id="searchSection" class="search-section hidden">
+                    <div class="search-container">
+                        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="M21 21l-4.35-4.35"></path>
+                        </svg>
+                        <input type="text" id="searchInput" class="search-input" placeholder="Search products...">
+                        <button id="clearSearch" class="clear-search hidden">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Cart Tab -->
+            <section id="cartTab" class="tab-content">
+                <div id="emptyCart" class="empty-state">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+                        <circle cx="9" cy="21" r="1"></circle>
+                        <circle cx="20" cy="21" r="1"></circle>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                    </svg>
+                    <p>Your cart is empty</p>
+                    <p class="empty-subtext">Start a shopping trip to add items</p>
+                </div>
+                <div id="cartContent" class="cart-content hidden">
+                    <div id="cartItems" class="cart-items"></div>
+                    <div class="cart-summary">
+                        <div class="summary-row">
+                            <span>Subtotal</span>
+                            <span id="cartSubtotal">$0.00</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Est. Tax (8.25%)</span>
+                            <span id="cartTax">$0.00</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Estimated Total</span>
+                            <span id="cartTotal">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- History Tab -->
+            <section id="historyTab" class="tab-content">
+                <div id="emptyHistory" class="empty-state">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <p>No shopping history yet</p>
+                    <p class="empty-subtext">Complete a shopping trip to see it here</p>
+                </div>
+                <div id="historyContent" class="history-content hidden">
+                    <div id="historyStats" class="history-stats"></div>
+                    <div id="historyList" class="history-list"></div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Product Detail Modal -->
+        <div id="productModal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <button class="modal-close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+                <div id="modalBody" class="modal-body"></div>
+            </div>
+        </div>
+
+        <!-- Trip Name Modal -->
+        <div id="tripModal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content trip-modal-content">
+                <h2>Start Shopping Trip</h2>
+                <input type="text" id="tripNameInput" class="trip-name-input" placeholder="Enter trip name (optional)">
+                <p class="trip-date" id="tripDate"></p>
+                <div class="modal-actions">
+                    <button id="cancelTrip" class="btn-secondary">Cancel</button>
+                    <button id="confirmTrip" class="btn-primary">Start Trip</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trip History Detail Modal -->
+        <div id="tripDetailModal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="modal-content trip-detail-content">
+                <button class="modal-close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+                <div id="tripDetailBody" class="trip-detail-body"></div>
+            </div>
+        </div>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
