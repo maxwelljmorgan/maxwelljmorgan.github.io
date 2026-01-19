@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Hockey Shootout</title>
+    <link rel="stylesheet" href="hockey.css">
+    <link rel="manifest" href="hockey-manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/svg+xml" href="hockey-icon.svg">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active">
+            <div class="title-container">
+                <h1>Hockey Shootout</h1>
+                <div class="puck-icon"></div>
+            </div>
+            <div class="menu-options">
+                <button id="play-btn" class="menu-btn">Play Game</button>
+                <button id="how-to-play-btn" class="menu-btn secondary">How to Play</button>
+            </div>
+            <div class="difficulty-selector">
+                <label>Difficulty:</label>
+                <div class="difficulty-buttons">
+                    <button class="diff-btn" data-difficulty="easy">Easy</button>
+                    <button class="diff-btn active" data-difficulty="medium">Medium</button>
+                    <button class="diff-btn" data-difficulty="hard">Hard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- How to Play Screen -->
+        <div id="how-to-screen" class="screen">
+            <h2>How to Play</h2>
+            <div class="instructions">
+                <div class="instruction-item">
+                    <span class="step">1</span>
+                    <p><strong>Aim:</strong> Tap or click anywhere on the goal to aim your shot</p>
+                </div>
+                <div class="instruction-item">
+                    <span class="step">2</span>
+                    <p><strong>Power:</strong> Hold to charge your shot power, release to shoot</p>
+                </div>
+                <div class="instruction-item">
+                    <span class="step">3</span>
+                    <p><strong>Score:</strong> Beat the goalie to score! You have 5 shots per round</p>
+                </div>
+                <div class="instruction-item">
+                    <span class="step">4</span>
+                    <p><strong>Win:</strong> Score more goals than the AI goalie can save</p>
+                </div>
+            </div>
+            <button id="back-btn" class="menu-btn">Back</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div id="scoreboard">
+                <div class="score-section">
+                    <span class="label">YOU</span>
+                    <span id="player-score" class="score">0</span>
+                </div>
+                <div class="round-info">
+                    <span>Shot</span>
+                    <span id="current-shot">1</span>
+                    <span>/</span>
+                    <span id="total-shots">5</span>
+                </div>
+                <div class="score-section">
+                    <span class="label">SAVES</span>
+                    <span id="goalie-saves" class="score">0</span>
+                </div>
+            </div>
+
+            <div id="rink">
+                <div id="ice-surface">
+                    <div class="rink-marking center-line"></div>
+                    <div class="rink-marking blue-line"></div>
+                    <div class="rink-marking goal-crease"></div>
+
+                    <div id="goal">
+                        <div class="goal-frame">
+                            <div class="goal-post left"></div>
+                            <div class="goal-post right"></div>
+                            <div class="goal-crossbar"></div>
+                            <div class="goal-net"></div>
+                        </div>
+                        <div id="target-zones">
+                            <div class="target-zone" data-zone="top-left"></div>
+                            <div class="target-zone" data-zone="top-center"></div>
+                            <div class="target-zone" data-zone="top-right"></div>
+                            <div class="target-zone" data-zone="bottom-left"></div>
+                            <div class="target-zone" data-zone="bottom-center"></div>
+                            <div class="target-zone" data-zone="bottom-right"></div>
+                        </div>
+                    </div>
+
+                    <div id="goalie">
+                        <div class="goalie-body">
+                            <div class="goalie-helmet"></div>
+                            <div class="goalie-chest"></div>
+                            <div class="goalie-glove left"></div>
+                            <div class="goalie-glove right"></div>
+                            <div class="goalie-pads">
+                                <div class="pad left"></div>
+                                <div class="pad right"></div>
+                            </div>
+                            <div class="goalie-stick"></div>
+                        </div>
+                    </div>
+
+                    <div id="puck"></div>
+
+                    <div id="player">
+                        <div class="player-body">
+                            <div class="player-helmet"></div>
+                            <div class="player-jersey"></div>
+                            <div class="player-stick"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="power-meter">
+                    <div id="power-fill"></div>
+                    <div id="power-indicator"></div>
+                </div>
+            </div>
+
+            <div id="game-message"></div>
+            <div id="aim-indicator">Tap the goal to aim</div>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="screen">
+            <div id="result-content">
+                <h2 id="result-title">Game Over</h2>
+                <div id="final-stats">
+                    <div class="stat">
+                        <span class="stat-label">Goals Scored</span>
+                        <span id="final-goals" class="stat-value">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Shots Taken</span>
+                        <span id="final-shots" class="stat-value">5</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Accuracy</span>
+                        <span id="final-accuracy" class="stat-value">0%</span>
+                    </div>
+                </div>
+                <div class="result-buttons">
+                    <button id="play-again-btn" class="menu-btn">Play Again</button>
+                    <button id="main-menu-btn" class="menu-btn secondary">Main Menu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sound effects (Web Audio API used in JS) -->
+    <script src="hockey.js"></script>
+</body>
+</html>
