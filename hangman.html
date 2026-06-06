@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1e293b">
+<title>Two-Player Hangman</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --accent: #38bdf8;
+    --accent-2: #818cf8;
+    --good: #34d399;
+    --bad: #f87171;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --line: #e2e8f0;
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 800px at 80% -10%, #1e3a5f 0%, transparent 60%),
+                radial-gradient(900px 700px at -10% 110%, #312e81 0%, transparent 55%),
+                var(--bg);
+    color: var(--text);
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 14px 40px;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 720px;
+  }
+
+  header.top {
+    text-align: center;
+    margin-bottom: 18px;
+  }
+
+  header.top h1 {
+    font-size: clamp(1.6rem, 5vw, 2.4rem);
+    letter-spacing: .5px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  header.top p {
+    color: var(--muted);
+    margin-top: 4px;
+    font-size: .95rem;
+  }
+
+  .card {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid rgba(148,163,184,.15);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    padding: 22px;
+  }
+
+  .hidden { display: none !important; }
+
+  /* ---------- Setup screen ---------- */
+  .setup h2 {
+    text-align: center;
+    font-size: 1.3rem;
+    margin-bottom: 6px;
+  }
+
+  .setup .sub {
+    text-align: center;
+    color: var(--muted);
+    margin-bottom: 20px;
+    font-size: .9rem;
+  }
+
+  .difficulties {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .diff-btn {
+    cursor: pointer;
+    border: 2px solid rgba(148,163,184,.2);
+    background: rgba(15,23,42,.5);
+    color: var(--text);
+    border-radius: 14px;
+    padding: 18px 10px;
+    text-align: center;
+    transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    font: inherit;
+  }
+  .diff-btn:hover { transform: translateY(-3px); }
+  .diff-btn.selected {
+    border-color: var(--accent);
+    background: rgba(56,189,248,.12);
+  }
+  .diff-btn .emoji { font-size: 1.8rem; display: block; }
+  .diff-btn .name { font-weight: 700; margin-top: 6px; }
+  .diff-btn .desc { font-size: .72rem; color: var(--muted); margin-top: 4px; }
+
+  .scorebar {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .score-pill {
+    background: rgba(15,23,42,.5);
+    border: 1px solid rgba(148,163,184,.18);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: .85rem;
+  }
+  .score-pill b { color: var(--accent); }
+
+  .primary-btn {
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    border: none;
+    border-radius: 14px;
+    padding: 15px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #04121f;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: opacity .15s ease, transform .1s ease;
+    font-family: inherit;
+  }
+  .primary-btn:hover { opacity: .92; }
+  .primary-btn:active { transform: scale(.99); }
+  .primary-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  .ghost-btn {
+    cursor: pointer;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid rgba(148,163,184,.25);
+    border-radius: 12px;
+    padding: 10px 16px;
+    font: inherit;
+    transition: color .15s, border-color .15s;
+  }
+  .ghost-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  .role-note {
+    text-align: center;
+    color: var(--muted);
+    font-size: .82rem;
+    margin-top: 14px;
+  }
+
+  /* ---------- Play screen ---------- */
+  .play-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    font-size: .78rem;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(15,23,42,.6);
+    border: 1px solid rgba(148,163,184,.2);
+  }
+  .badge.diff-easy { color: var(--good); border-color: rgba(52,211,153,.4); }
+  .badge.diff-medium { color: #fbbf24; border-color: rgba(251,191,36,.4); }
+  .badge.diff-hard { color: var(--bad); border-color: rgba(248,113,113,.4); }
+
+  .attempts {
+    font-size: .85rem;
+    color: var(--muted);
+  }
+  .attempts b { color: var(--bad); }
+
+  .stage {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0 10px;
+  }
+  svg.gallows {
+    width: 220px;
+    max-width: 60vw;
+    height: auto;
+  }
+  .gallows .frame { stroke: var(--muted); stroke-width: 6; stroke-linecap: round; fill: none; }
+  .gallows .body-part {
+    stroke: var(--line);
+    stroke-width: 5;
+    stroke-linecap: round;
+    fill: none;
+    opacity: 0;
+    transition: opacity .3s ease;
+  }
+  .gallows .body-part.show { opacity: 1; }
+  .gallows circle.body-part.show { fill: none; }
+
+  .word {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0;
+  }
+  .letter-slot {
+    width: 30px;
+    height: 42px;
+    border-bottom: 4px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .letter-slot.space { border-bottom: none; width: 14px; }
+  .letter-slot.revealed { color: var(--text); }
+  .letter-slot.miss-reveal { color: var(--bad); border-color: var(--bad); }
+
+  .status-msg {
+    text-align: center;
+    min-height: 26px;
+    font-size: 1rem;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .status-msg.win { color: var(--good); }
+  .status-msg.lose { color: var(--bad); }
+
+  /* ---------- Keyboard ---------- */
+  .keyboard {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+  .kb-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .key {
+    width: 38px;
+    height: 46px;
+    border-radius: 10px;
+    border: 1px solid rgba(148,163,184,.25);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: transform .08s ease, background .15s ease;
+    font-family: inherit;
+  }
+  .key:hover:not(:disabled) { transform: translateY(-2px); background: #324363; }
+  .key:disabled { cursor: default; transform: none; }
+  .key.correct { background: var(--good); color: #04121f; border-color: var(--good); }
+  .key.wrong { background: var(--bad); color: #2a0a0a; border-color: var(--bad); opacity: .65; }
+
+  /* ---------- End overlay ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(2,6,23,.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+    backdrop-filter: blur(3px);
+  }
+  .overlay .modal {
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+    animation: pop .3s ease;
+  }
+  @keyframes pop {
+    from { transform: scale(.85); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .overlay .modal h2 { font-size: 1.8rem; margin-bottom: 8px; }
+  .overlay .modal .answer-line { color: var(--muted); margin-bottom: 6px; }
+  .overlay .modal .answer-line b { color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+  .overlay .modal .result-emoji { font-size: 3rem; }
+  .overlay .actions { margin-top: 22px; display: grid; gap: 10px; }
+
+  .footer-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .footer-actions .ghost-btn { flex: 1; }
+
+  @media (max-width: 480px) {
+    .key { width: 30px; height: 42px; font-size: .9rem; border-radius: 8px; }
+    .letter-slot { width: 24px; height: 36px; font-size: 1.35rem; }
+    .card { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Hangman</h1>
+    <p>A two-player word guessing duel</p>
+  </header>
+
+  <!-- ================= SETUP SCREEN ================= -->
+  <section id="setupScreen" class="card setup">
+    <div class="scorebar">
+      <div class="score-pill">Setter wins: <b id="setterWins">0</b></div>
+      <div class="score-pill">Guesser wins: <b id="guesserWins">0</b></div>
+      <div class="score-pill">Round: <b id="roundNum">1</b></div>
+    </div>
+
+    <h2 id="setupTitle">Player 1 — pick a difficulty</h2>
+    <p class="sub">Player 1 chooses the challenge. A random word is generated — Player 2 won't see it!</p>
+
+    <div class="difficulties" id="difficulties">
+      <button class="diff-btn" data-diff="easy">
+        <span class="emoji">🟢</span>
+        <span class="name">Easy</span>
+        <span class="desc">Common 3–5 letter words</span>
+      </button>
+      <button class="diff-btn" data-diff="medium">
+        <span class="emoji">🟡</span>
+        <span class="name">Medium</span>
+        <span class="desc">6–8 letter words</span>
+      </button>
+      <button class="diff-btn" data-diff="hard">
+        <span class="emoji">🔴</span>
+        <span class="name">Hard</span>
+        <span class="desc">9+ letters / tricky</span>
+      </button>
+    </div>
+
+    <button class="primary-btn" id="startBtn" disabled>Generate Word &amp; Start</button>
+
+    <div class="footer-actions">
+      <button class="ghost-btn" id="swapBtn">🔄 Swap roles</button>
+      <button class="ghost-btn" id="resetScoreBtn">↺ Reset scores</button>
+    </div>
+    <p class="role-note" id="roleNote"></p>
+  </section>
+
+  <!-- ================= PLAY SCREEN ================= -->
+  <section id="playScreen" class="card hidden">
+    <div class="play-head">
+      <span class="badge" id="diffBadge">EASY</span>
+      <span class="attempts">Wrong: <b id="wrongCount">0</b> / 6 &nbsp;·&nbsp; Left: <b id="attemptsLeft" style="color:var(--good)">6</b></span>
+    </div>
+
+    <div class="stage">
+      <svg class="gallows" viewBox="0 0 200 220" aria-label="Hangman drawing">
+        <!-- gallows frame -->
+        <line class="frame" x1="20" y1="210" x2="120" y2="210"/>
+        <line class="frame" x1="50" y1="210" x2="50" y2="20"/>
+        <line class="frame" x1="50" y1="20" x2="140" y2="20"/>
+        <line class="frame" x1="140" y1="20" x2="140" y2="45"/>
+        <!-- body parts (revealed progressively) -->
+        <circle class="body-part" id="part-head" cx="140" cy="63" r="18"/>
+        <line class="body-part" id="part-body" x1="140" y1="81" x2="140" y2="140"/>
+        <line class="body-part" id="part-arm-l" x1="140" y1="95" x2="115" y2="120"/>
+        <line class="body-part" id="part-arm-r" x1="140" y1="95" x2="165" y2="120"/>
+        <line class="body-part" id="part-leg-l" x1="140" y1="140" x2="118" y2="175"/>
+        <line class="body-part" id="part-leg-r" x1="140" y1="140" x2="162" y2="175"/>
+      </svg>
+    </div>
+
+    <div class="word" id="wordDisplay"></div>
+
+    <div class="status-msg" id="statusMsg"></div>
+
+    <div class="keyboard" id="keyboard"></div>
+  </section>
+</div>
+
+<!-- ================= END OVERLAY ================= -->
+<div class="overlay hidden" id="endOverlay">
+  <div class="card modal">
+    <div class="result-emoji" id="resultEmoji">🎉</div>
+    <h2 id="resultTitle">Player 2 wins!</h2>
+    <p class="answer-line">The word was <b id="answerReveal">word</b></p>
+    <p class="sub" id="resultDetail"></p>
+    <div class="actions">
+      <button class="primary-btn" id="playAgainBtn">Play Again</button>
+      <button class="ghost-btn" id="playAgainSwapBtn">Play Again (swap roles)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ===================== WORD BANK ===================== */
+  const WORDS = {
+    easy: [
+      "cat","dog","sun","book","tree","fish","milk","bird","cake","door",
+      "lamp","star","frog","ball","shoe","rain","leaf","king","ship","gold",
+      "moon","road","desk","corn","ring","wolf","nest","drum","kite","sock",
+      "hat","cup","map","bee","key","jam","owl","ant","box","pig"
+    ],
+    medium: [
+      "garden","planet","monkey","window","castle","rocket","pirate","dragon",
+      "guitar","jungle","wizard","candle","picture","diamond","rainbow","balloon",
+      "captain","kitchen","journey","library","compass","blanket","penguin","cabbage",
+      "harvest","leopard","village","whisper","trumpet","glacier","biscuit","factory",
+      "magnet","puzzle","velvet","orchard"
+    ],
+    hard: [
+      "adventure","chocolate","xylophone","extravagant","camouflage","telescope","butterfly",
+      "asymmetric","mysterious","quarantine","labyrinth","silhouette","architect","quizzical",
+      "vocabulary","hieroglyph","juxtapose","kaleidoscope","mnemonic","onomatopoeia",
+      "rhythmical","conundrum","zucchini","periphery","jubilant","cryptography","equinox",
+      "fluorescent","gargantuan","hippopotamus","incognito","mischievous","nostalgia",
+      "perpendicular","rendezvous","wavelength"
+    ]
+  };
+
+  const MAX_WRONG = 6;
+  const PART_ORDER = ["part-head","part-body","part-arm-l","part-arm-r","part-leg-l","part-leg-r"];
+
+  /* ===================== STATE ===================== */
+  const state = {
+    difficulty: null,
+    word: "",
+    guessed: new Set(),
+    wrong: 0,
+    over: false,
+    // role tracking: which player is the setter
+    setterIsP1: true,
+    round: 1,
+    scores: { setter: 0, guesser: 0 }
+  };
+
+  /* ===================== ELEMENTS ===================== */
+  const el = {
+    setupScreen: document.getElementById("setupScreen"),
+    playScreen: document.getElementById("playScreen"),
+    endOverlay: document.getElementById("endOverlay"),
+    difficulties: document.getElementById("difficulties"),
+    startBtn: document.getElementById("startBtn"),
+    swapBtn: document.getElementById("swapBtn"),
+    resetScoreBtn: document.getElementById("resetScoreBtn"),
+    setupTitle: document.getElementById("setupTitle"),
+    roleNote: document.getElementById("roleNote"),
+    diffBadge: document.getElementById("diffBadge"),
+    wrongCount: document.getElementById("wrongCount"),
+    attemptsLeft: document.getElementById("attemptsLeft"),
+    wordDisplay: document.getElementById("wordDisplay"),
+    statusMsg: document.getElementById("statusMsg"),
+    keyboard: document.getElementById("keyboard"),
+    setterWins: document.getElementById("setterWins"),
+    guesserWins: document.getElementById("guesserWins"),
+    roundNum: document.getElementById("roundNum"),
+    resultEmoji: document.getElementById("resultEmoji"),
+    resultTitle: document.getElementById("resultTitle"),
+    answerReveal: document.getElementById("answerReveal"),
+    resultDetail: document.getElementById("resultDetail"),
+    playAgainBtn: document.getElementById("playAgainBtn"),
+    playAgainSwapBtn: document.getElementById("playAgainSwapBtn")
+  };
+
+  /* ===================== HELPERS ===================== */
+  function setterLabel() { return state.setterIsP1 ? "Player 1" : "Player 2"; }
+  function guesserLabel() { return state.setterIsP1 ? "Player 2" : "Player 1"; }
+
+  function pickWord(diff) {
+    const list = WORDS[diff];
+    return list[Math.floor(Math.random() * list.length)].toLowerCase();
+  }
+
+  function refreshSetupLabels() {
+    el.setupTitle.textContent = setterLabel() + " — pick a difficulty";
+    el.roleNote.textContent =
+      setterLabel() + " sets the word · " + guesserLabel() + " guesses.";
+    el.roundNum.textContent = state.round;
+    el.setterWins.textContent = state.scores.setter;
+    el.guesserWins.textContent = state.scores.guesser;
+  }
+
+  /* ===================== SETUP SCREEN ===================== */
+  el.difficulties.addEventListener("click", function (e) {
+    const btn = e.target.closest(".diff-btn");
+    if (!btn) return;
+    state.difficulty = btn.dataset.diff;
+    Array.from(el.difficulties.children).forEach(function (b) {
+      b.classList.toggle("selected", b === btn);
+    });
+    el.startBtn.disabled = false;
+  });
+
+  el.swapBtn.addEventListener("click", function () {
+    state.setterIsP1 = !state.setterIsP1;
+    refreshSetupLabels();
+  });
+
+  el.resetScoreBtn.addEventListener("click", function () {
+    state.scores.setter = 0;
+    state.scores.guesser = 0;
+    state.round = 1;
+    refreshSetupLabels();
+  });
+
+  el.startBtn.addEventListener("click", startRound);
+
+  function startRound() {
+    if (!state.difficulty) return;
+    state.word = pickWord(state.difficulty);
+    state.guessed = new Set();
+    state.wrong = 0;
+    state.over = false;
+
+    el.setupScreen.classList.add("hidden");
+    el.playScreen.classList.remove("hidden");
+    el.endOverlay.classList.add("hidden");
+
+    el.diffBadge.textContent = state.difficulty.toUpperCase();
+    el.diffBadge.className = "badge diff-" + state.difficulty;
+    el.statusMsg.textContent = guesserLabel() + ", start guessing!";
+    el.statusMsg.className = "status-msg";
+
+    resetGallows();
+    buildKeyboard();
+    renderWord();
+    updateCounters();
+  }
+
+  /* ===================== GALLOWS ===================== */
+  function resetGallows() {
+    PART_ORDER.forEach(function (id) {
+      document.getElementById(id).classList.remove("show");
+    });
+  }
+
+  function drawGallows() {
+    for (let i = 0; i < state.wrong; i++) {
+      document.getElementById(PART_ORDER[i]).classList.add("show");
+    }
+  }
+
+  /* ===================== WORD DISPLAY ===================== */
+  function renderWord(revealAll) {
+    el.wordDisplay.innerHTML = "";
+    state.word.split("").forEach(function (ch) {
+      const slot = document.createElement("div");
+      if (ch === " ") {
+        slot.className = "letter-slot space";
+        el.wordDisplay.appendChild(slot);
+        return;
+      }
+      slot.className = "letter-slot";
+      const known = state.guessed.has(ch);
+      if (known) {
+        slot.textContent = ch;
+        slot.classList.add("revealed");
+      } else if (revealAll) {
+        slot.textContent = ch;
+        slot.classList.add("miss-reveal");
+      }
+      el.wordDisplay.appendChild(slot);
+    });
+  }
+
+  /* ===================== KEYBOARD ===================== */
+  const KB_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
+
+  function buildKeyboard() {
+    el.keyboard.innerHTML = "";
+    KB_ROWS.forEach(function (row) {
+      const rowDiv = document.createElement("div");
+      rowDiv.className = "kb-row";
+      row.split("").forEach(function (letter) {
+        const key = document.createElement("button");
+        key.className = "key";
+        key.textContent = letter;
+        key.dataset.letter = letter;
+        key.addEventListener("click", function () { guess(letter); });
+        rowDiv.appendChild(key);
+      });
+      el.keyboard.appendChild(rowDiv);
+    });
+  }
+
+  function updateKey(letter, correct) {
+    const key = el.keyboard.querySelector('[data-letter="' + letter + '"]');
+    if (!key) return;
+    key.disabled = true;
+    key.classList.add(correct ? "correct" : "wrong");
+  }
+
+  /* ===================== GUESS LOGIC ===================== */
+  function guess(letter) {
+    if (state.over || state.guessed.has(letter)) return;
+    state.guessed.add(letter);
+
+    const correct = state.word.indexOf(letter) !== -1;
+    updateKey(letter, correct);
+
+    if (correct) {
+      renderWord();
+      el.statusMsg.textContent = "Nice! “" + letter.toUpperCase() + "” is in the word.";
+      el.statusMsg.className = "status-msg";
+      if (isWordComplete()) endGame(true);
+    } else {
+      state.wrong++;
+      drawGallows();
+      updateCounters();
+      el.statusMsg.textContent = "Nope — “" + letter.toUpperCase() + "” isn't there.";
+      el.statusMsg.className = "status-msg";
+      if (state.wrong >= MAX_WRONG) endGame(false);
+    }
+  }
+
+  function isWordComplete() {
+    return state.word.split("").every(function (ch) {
+      return ch === " " || state.guessed.has(ch);
+    });
+  }
+
+  function updateCounters() {
+    el.wrongCount.textContent = state.wrong;
+    const left = MAX_WRONG - state.wrong;
+    el.attemptsLeft.textContent = left;
+    el.attemptsLeft.style.color = left <= 2 ? "var(--bad)" : (left <= 4 ? "#fbbf24" : "var(--good)");
+  }
+
+  /* ===================== END GAME ===================== */
+  function endGame(guesserWon) {
+    state.over = true;
+    // disable remaining keys
+    el.keyboard.querySelectorAll(".key").forEach(function (k) { k.disabled = true; });
+
+    if (guesserWon) {
+      state.scores.guesser++;
+      el.statusMsg.textContent = "Solved it! 🎉";
+      el.statusMsg.className = "status-msg win";
+      el.resultEmoji.textContent = "🎉";
+      el.resultTitle.textContent = guesserLabel() + " wins the round!";
+      el.resultDetail.textContent = "Guessed with " + state.wrong + " wrong " +
+        (state.wrong === 1 ? "guess" : "guesses") + " to spare.";
+    } else {
+      state.scores.setter++;
+      renderWord(true); // reveal the missed letters
+      el.statusMsg.textContent = "Out of guesses!";
+      el.statusMsg.className = "status-msg lose";
+      el.resultEmoji.textContent = "💀";
+      el.resultTitle.textContent = guesserLabel() + " is out of guesses.";
+      el.resultDetail.textContent = setterLabel() + " stumped them — point to the setter!";
+    }
+
+    el.answerReveal.textContent = state.word;
+    el.setterWins.textContent = state.scores.setter;
+    el.guesserWins.textContent = state.scores.guesser;
+
+    setTimeout(function () {
+      el.endOverlay.classList.remove("hidden");
+    }, 650);
+  }
+
+  /* ===================== PLAY AGAIN ===================== */
+  function backToSetup(swap) {
+    if (swap) state.setterIsP1 = !state.setterIsP1;
+    state.round++;
+    state.difficulty = null;
+    el.startBtn.disabled = true;
+    Array.from(el.difficulties.children).forEach(function (b) {
+      b.classList.remove("selected");
+    });
+    el.endOverlay.classList.add("hidden");
+    el.playScreen.classList.add("hidden");
+    el.setupScreen.classList.remove("hidden");
+    refreshSetupLabels();
+  }
+
+  el.playAgainBtn.addEventListener("click", function () { backToSetup(false); });
+  el.playAgainSwapBtn.addEventListener("click", function () { backToSetup(true); });
+
+  /* ===================== PHYSICAL KEYBOARD ===================== */
+  document.addEventListener("keydown", function (e) {
+    if (el.playScreen.classList.contains("hidden")) return;
+    if (state.over) return;
+    const letter = e.key.toLowerCase();
+    if (/^[a-z]$/.test(letter)) guess(letter);
+  });
+
+  /* ===================== INIT ===================== */
+  refreshSetupLabels();
+})();
+</script>
+</body>
+</html>
