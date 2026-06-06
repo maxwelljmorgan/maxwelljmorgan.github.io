@@ -10,6 +10,28 @@
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.svg">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Floating link to the Sequence game (self-contained, no layout impact) */
+        #sequenceFab {
+            position: fixed;
+            left: 16px;
+            bottom: calc(16px + env(safe-area-inset-bottom));
+            z-index: 90;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 16px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #2563eb, #dc2626);
+            color: #fff;
+            font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            text-decoration: none;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+            -webkit-tap-highlight-color: transparent;
+        }
+        #sequenceFab:active { transform: scale(.97); }
+        #sequenceFab .fab-emoji { font-size: 18px; line-height: 1; }
+    </style>
 </head>
 <body>
     <div id="app">
@@ -175,6 +197,11 @@
         <!-- Toast Notification -->
         <div id="toast" class="toast hidden"></div>
     </div>
+
+    <!-- Floating shortcut to the Sequence game -->
+    <a id="sequenceFab" href="sequence/" aria-label="Play Sequence">
+        <span class="fab-emoji">🃏</span><span>Play Sequence</span>
+    </a>
 
     <script src="app.js"></script>
 </body>
