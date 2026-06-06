@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0f172a">
+  <title>Sequence</title>
+  <link rel="stylesheet" href="sequence.css">
+</head>
+<body>
+
+  <!-- ====================== MENU ====================== -->
+  <section id="screen-menu" class="screen active menu-screen">
+    <div class="menu-card">
+      <h1 class="logo">SEQUENCE</h1>
+      <p class="tagline">Five in a row wins.</p>
+      <button id="btn-local" class="big-btn">Pass &amp; Play</button>
+      <button id="btn-create" class="big-btn">Create Online Game</button>
+      <button id="btn-join" class="big-btn ghost">Join Online Game</button>
+      <button id="btn-rules" class="link-btn">How to play</button>
+    </div>
+  </section>
+
+  <!-- ====================== CREATE ONLINE ====================== -->
+  <section id="screen-create" class="screen create-screen">
+    <div class="menu-card">
+      <h2>Online Game</h2>
+      <p class="muted">Share this code with Player 2. They enter it on the same site.</p>
+      <div id="room-code" class="room-code">······</div>
+      <button id="copy-code" class="big-btn">Copy invite link</button>
+      <p id="create-status" class="muted status">Connecting…</p>
+      <div class="spinner"></div>
+      <button id="create-back" class="link-btn">Back</button>
+    </div>
+  </section>
+
+  <!-- ====================== JOIN ONLINE ====================== -->
+  <section id="screen-join" class="screen join-screen">
+    <div class="menu-card">
+      <h2>Join Game</h2>
+      <p class="muted">Enter the 6-character room code from Player 1.</p>
+      <input id="code-input" class="code-input" type="text" inputmode="latin"
+             autocapitalize="characters" autocomplete="off" maxlength="6" placeholder="ABC123">
+      <p id="join-error" class="error"></p>
+      <button id="join-go" class="big-btn">Join</button>
+      <button id="join-back" class="link-btn">Back</button>
+    </div>
+  </section>
+
+  <!-- ====================== GAME ====================== -->
+  <section id="screen-game" class="screen game-screen">
+    <header class="game-top">
+      <button id="game-menu" class="icon-btn" aria-label="Menu">☰</button>
+      <div id="turn-banner" class="turn-banner">Your turn</div>
+      <div class="deck-pill">🂠 <span id="deck-count">90</span></div>
+    </header>
+
+    <div class="info-row">
+      <span id="opp-info" class="info-chip"></span>
+      <span id="you-info" class="info-chip"></span>
+    </div>
+
+    <div class="board-wrap">
+      <div id="board" class="board"></div>
+    </div>
+
+    <p id="hint" class="hint">Tap a card to see where you can play it.</p>
+
+    <div id="hand" class="hand"></div>
+  </section>
+
+  <!-- ====================== OVERLAYS ====================== -->
+  <div id="pass-overlay" class="overlay">
+    <div class="overlay-card">
+      <div id="pass-text" class="overlay-title"></div>
+      <p class="muted">Hand hidden. Hand the device over, then tap below.</p>
+      <button id="pass-ready" class="big-btn">I'm ready — show my hand</button>
+    </div>
+  </div>
+
+  <div id="win-overlay" class="overlay">
+    <div class="overlay-card">
+      <div id="win-text" class="overlay-title"></div>
+      <button id="win-again" class="big-btn">Play again</button>
+      <button id="win-menu" class="link-btn">Main menu</button>
+    </div>
+  </div>
+
+  <div id="net-overlay" class="overlay">
+    <div class="overlay-card">
+      <div class="spinner"></div>
+      <p id="net-text" class="overlay-title small">Connecting…</p>
+      <button id="net-retry" class="big-btn" style="display:none">Retry</button>
+      <button id="net-menu" class="link-btn">Main menu</button>
+    </div>
+  </div>
+
+  <div id="rules" class="overlay">
+    <div class="overlay-card rules-card">
+      <h2>How to play</h2>
+      <ul>
+        <li><b>Goal:</b> be first to get <b>5 chips in a row</b> — horizontal, vertical, or diagonal.</li>
+        <li>The four <b>★ corners</b> are free spaces and count for everyone.</li>
+        <li>Tap a card in your hand to <b>highlight</b> the board spaces it can play. Tap a glowing space to drop a chip.</li>
+        <li>Each card matches <b>two</b> spaces on the board. After you play, you draw a new card.</li>
+        <li><b>Two-eyed Jacks</b> (♦ ♣) are <b>wild</b> — place a chip on any empty space.</li>
+        <li><b>One-eyed Jacks</b> (♠ ♥) <b>remove</b> one opponent chip (not one already in a completed sequence).</li>
+        <li>If both spaces for a card are full it's a <b>dead card</b> — tap it to swap it for a new one.</li>
+      </ul>
+      <button id="rules-close" class="big-btn">Got it</button>
+    </div>
+  </div>
+
+  <script src="engine.js"></script>
+  <script src="sequence.js"></script>
+</body>
+</html>
