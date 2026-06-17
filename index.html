@@ -31,6 +31,27 @@
         }
         #sequenceFab:active { transform: scale(.97); }
         #sequenceFab .fab-emoji { font-size: 18px; line-height: 1; }
+
+        /* Floating link to the Stride running tracker (stacked above Sequence) */
+        #strideFab {
+            position: fixed;
+            left: 16px;
+            bottom: calc(16px + 54px + env(safe-area-inset-bottom));
+            z-index: 90;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 16px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #0ea5e9, #6366f1);
+            color: #fff;
+            font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            text-decoration: none;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+            -webkit-tap-highlight-color: transparent;
+        }
+        #strideFab:active { transform: scale(.97); }
+        #strideFab .fab-emoji { font-size: 18px; line-height: 1; }
     </style>
 </head>
 <body>
@@ -197,6 +218,11 @@
         <!-- Toast Notification -->
         <div id="toast" class="toast hidden"></div>
     </div>
+
+    <!-- Floating shortcut to the Stride running tracker -->
+    <a id="strideFab" href="running/" aria-label="Open Stride running tracker">
+        <span class="fab-emoji">🏃</span><span>Stride</span>
+    </a>
 
     <!-- Floating shortcut to the Sequence game -->
     <a id="sequenceFab" href="sequence/" aria-label="Play Sequence">
