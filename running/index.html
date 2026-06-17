@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0ea5e9">
+    <title>Stride — Running Training Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js (charts) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- pdf.js for parsing uploaded plans is loaded dynamically in app.js -->
+</head>
+<body>
+<div id="app">
+    <!-- ===== Sidebar / Nav ===== -->
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">🏃</span>
+            <span class="brand-name">Stride</span>
+        </div>
+        <nav class="nav">
+            <button class="nav-item active" data-view="plan">
+                <span class="nav-ico">📋</span><span>Training Plan</span>
+            </button>
+            <button class="nav-item" data-view="log">
+                <span class="nav-ico">📝</span><span>Daily Log</span>
+            </button>
+            <button class="nav-item" data-view="analysis">
+                <span class="nav-ico">📊</span><span>Analysis</span>
+            </button>
+            <button class="nav-item" data-view="insights">
+                <span class="nav-ico">💡</span><span>Coaching</span>
+            </button>
+        </nav>
+        <div class="sidebar-foot">
+            <button id="themeToggle" class="ghost-btn" title="Toggle theme">
+                <span class="theme-ico">🌙</span><span class="theme-label">Dark</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- ===== Mobile top bar ===== -->
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark">🏃</span><span class="brand-name">Stride</span>
+        </div>
+        <button id="themeToggleMobile" class="ghost-btn icon-only" title="Toggle theme"><span class="theme-ico">🌙</span></button>
+    </header>
+
+    <!-- ===== Main ===== -->
+    <main class="content">
+
+        <!-- ===================== TRAINING PLAN ===================== -->
+        <section class="view active" id="view-plan">
+            <div class="view-head">
+                <h1>Training Plan</h1>
+                <div class="head-actions">
+                    <button id="editPlanBtn" class="btn">Edit Plan</button>
+                    <button id="uploadPlanBtn" class="btn">Upload PDF</button>
+                    <input type="file" id="pdfInput" accept="application/pdf" hidden>
+                </div>
+            </div>
+
+            <!-- Countdown cards -->
+            <div class="stat-row" id="planStats"></div>
+
+            <div class="card" id="planSourceCard"></div>
+
+            <!-- Current week highlight -->
+            <div id="currentWeekWrap"></div>
+
+            <!-- Full plan accordion -->
+            <h2 class="section-title">Full Schedule</h2>
+            <div id="planAccordion" class="accordion"></div>
+        </section>
+
+        <!-- ===================== DAILY LOG ===================== -->
+        <section class="view" id="view-log">
+            <div class="view-head"><h1>Daily Log</h1></div>
+
+            <div class="card form-card">
+                <h2 class="card-title" id="logFormTitle">Log a Run</h2>
+                <form id="logForm" class="log-form">
+                    <div class="field">
+                        <label for="logDate">Date</label>
+                        <input type="date" id="logDate" required>
+                    </div>
+                    <div class="field">
+                        <label for="logMiles">Distance (mi)</label>
+                        <input type="number" id="logMiles" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
+                    </div>
+                    <div class="field time-field">
+                        <label>Total Time</label>
+                        <div class="time-inputs">
+                            <input type="number" id="logHrs" min="0" max="99" placeholder="hh" inputmode="numeric">
+                            <span>:</span>
+                            <input type="number" id="logMin" min="0" max="59" placeholder="mm" inputmode="numeric">
+                            <span>:</span>
+                            <input type="number" id="logSec" min="0" max="59" placeholder="ss" inputmode="numeric">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="logPace">Avg Pace (/mi) <span class="hint">auto</span></label>
+                        <input type="text" id="logPace" placeholder="m:ss">
+                    </div>
+                    <div class="field">
+                        <label for="logWellness">Wellness <output id="wellnessOut">7</output>/10</label>
+                        <input type="range" id="logWellness" min="1" max="10" value="7" step="1">
+                    </div>
+                    <div class="field field-wide">
+                        <label for="logNotes">Notes <span class="hint">optional</span></label>
+                        <textarea id="logNotes" rows="2" placeholder="How did it feel? Weather, route, niggles…"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="logSaveBtn">Save Entry</button>
+                        <button type="button" class="btn" id="logResetBtn">Clear</button>
+                        <span id="plannedHint" class="planned-hint"></span>
+                    </div>
+                </form>
+            </div>
+
+            <h2 class="section-title">History</h2>
+            <div id="logList" class="log-list"></div>
+        </section>
+
+        <!-- ===================== ANALYSIS ===================== -->
+        <section class="view" id="view-analysis">
+            <div class="view-head"><h1>Analysis</h1></div>
+            <div class="subtabs" id="analysisSubtabs">
+                <button class="subtab active" data-sub="daily">Daily</button>
+                <button class="subtab" data-sub="weekly">Weekly</button>
+                <button class="subtab" data-sub="monthly">Monthly</button>
+            </div>
+
+            <!-- Daily -->
+            <div class="subview active" id="sub-daily">
+                <div class="stat-row" id="dailyStats"></div>
+                <div class="card chart-card"><h2 class="card-title">Pace Trend</h2><div class="chart-box"><canvas id="chartPaceDaily"></canvas></div></div>
+                <div class="card chart-card"><h2 class="card-title">Wellness Score</h2><div class="chart-box"><canvas id="chartWellnessDaily"></canvas></div></div>
+                <div class="card"><h2 class="card-title">Actual vs Planned (recent)</h2><div id="dailyCompare" class="compare-list"></div></div>
+            </div>
+
+            <!-- Weekly -->
+            <div class="subview" id="sub-weekly">
+                <div class="stat-row" id="weeklyStats"></div>
+                <div class="card chart-card"><h2 class="card-title">Weekly Mileage — Planned vs Actual</h2><div class="chart-box"><canvas id="chartWeeklyMiles"></canvas></div></div>
+                <div class="card"><h2 class="card-title">Week-by-Week</h2><div class="table-wrap"><table id="weeklyTable" class="data-table"></table></div></div>
+            </div>
+
+            <!-- Monthly -->
+            <div class="subview" id="sub-monthly">
+                <div class="stat-row" id="monthlyStats"></div>
+                <div class="card chart-card"><h2 class="card-title">Cumulative Mileage</h2><div class="chart-box"><canvas id="chartCumulative"></canvas></div></div>
+                <div class="card chart-card"><h2 class="card-title">Pace Progression</h2><div class="chart-box"><canvas id="chartPaceMonthly"></canvas></div></div>
+                <div class="card chart-card"><h2 class="card-title">Wellness Trend</h2><div class="chart-box"><canvas id="chartWellnessMonthly"></canvas></div></div>
+                <div class="card chart-card"><h2 class="card-title">Completed vs Missed Workouts</h2><div class="chart-box"><canvas id="chartCompletion"></canvas></div></div>
+            </div>
+        </section>
+
+        <!-- ===================== COACHING ===================== -->
+        <section class="view" id="view-insights">
+            <div class="view-head"><h1>Coaching Insights</h1></div>
+            <p class="muted">Rule-based guidance generated from your logged data and plan targets.</p>
+            <div id="insightsList" class="insights-list"></div>
+        </section>
+    </main>
+
+    <!-- ===== Mobile bottom nav ===== -->
+    <nav class="bottomnav">
+        <button class="bn-item active" data-view="plan"><span>📋</span><small>Plan</small></button>
+        <button class="bn-item" data-view="log"><span>📝</span><small>Log</small></button>
+        <button class="bn-item" data-view="analysis"><span>📊</span><small>Stats</small></button>
+        <button class="bn-item" data-view="insights"><span>💡</span><small>Coach</small></button>
+    </nav>
+</div>
+
+<!-- ===== Race date / first-run modal ===== -->
+<div class="modal hidden" id="setupModal">
+    <div class="modal-overlay"></div>
+    <div class="modal-box">
+        <h2>Set Your Race Date</h2>
+        <p class="muted">Stride loads a built-in 15-week half-marathon plan and counts down to your race. You can edit it or upload your own PDF anytime.</p>
+        <div class="field">
+            <label for="setupRaceName">Race name</label>
+            <input type="text" id="setupRaceName" value="Half Marathon">
+        </div>
+        <div class="field">
+            <label for="setupRaceDate">Race date</label>
+            <input type="date" id="setupRaceDate">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-primary" id="setupSave">Build My Plan</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Plan editor modal ===== -->
+<div class="modal hidden" id="editorModal">
+    <div class="modal-overlay"></div>
+    <div class="modal-box modal-lg">
+        <div class="editor-head">
+            <h2>Edit Training Plan</h2>
+            <button class="icon-btn" id="editorClose">✕</button>
+        </div>
+        <div class="editor-meta">
+            <div class="field"><label>Race name</label><input type="text" id="edRaceName"></div>
+            <div class="field"><label>Race date</label><input type="date" id="edRaceDate"></div>
+            <div class="field"><label>Goal pace (/mi)</label><input type="text" id="edGoalPace" placeholder="7:00"></div>
+        </div>
+        <div class="editor-weeks" id="editorWeeks"></div>
+        <div class="editor-foot">
+            <button class="btn" id="addWeekBtn">+ Add Week</button>
+            <div class="spacer"></div>
+            <button class="btn" id="resetPlanBtn">Reset to Built-in</button>
+            <button class="btn btn-primary" id="savePlanBtn">Save Plan</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
