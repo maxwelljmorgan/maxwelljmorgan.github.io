@@ -154,8 +154,34 @@
 
   const records = {
     best: Store.get('best', 0),
-    bestWave: Store.get('bestWave', 1)
+    bestWave: Store.get('bestWave', 1),
+    scrap: Store.get('scrap', 0),
+    perks: Store.get('perks', {})
   };
+
+  /**
+   * Scrap is the only thing that survives a run. It buys permanent perks in
+   * the hangar, so a bad run still moves the next one forward.
+   */
+  const PERKS = [
+    { id: 'reserve',   name: 'Reserve Bay',     cap: 3, costs: [40, 100, 200],
+      blurb: 'Start every run with an extra ship.' },
+    { id: 'munitions', name: 'Munitions Store', cap: 2, costs: [60, 150],
+      blurb: 'Start every run with a smart bomb in the rack.' },
+    { id: 'dice',      name: 'Requisition',     cap: 2, costs: [50, 120],
+      blurb: 'Start every run with an extra refit reroll.' },
+    { id: 'headstart', name: 'Shakedown Run',   cap: 1, costs: [220],
+      blurb: 'Take one refit pick before wave 1.' },
+    { id: 'salvright', name: 'Salvage Rights',  cap: 2, costs: [80, 180],
+      blurb: 'Earn 25% more scrap from every run.' }
+  ];
+
+  const perkLevel = (id) => records.perks[id] || 0;
+
+  function scrapEarned() {
+    const base = Math.floor(G.score / 400) + (G.wave - 1) * 4;
+    return Math.max(1, Math.round(base * (1 + 0.25 * perkLevel('salvright'))));
+  }
 
   // =========================================================
   // 4. Path following — enemies fly smooth Catmull-Rom curves
@@ -235,6 +261,9 @@
     waveClearTimer: 0,
     shake: 0,
     upgrades: {},               // permanent picks, id -> level
+    taken: [],                  // pick order, for the end-of-run recap
+    picks: 0,                   // refit picks still owed
+    rerolls: 1,
     shieldTimer: 0,
     combo: 0,                   // kills chained inside the combo window
     comboTimer: 0,
@@ -322,6 +351,7 @@
       case 'ArrowUp': case 'KeyW': input.up = true; break;
       case 'ArrowDown': case 'KeyS': input.down = true; break;
       case 'Space': input.firing = true; e.preventDefault(); break;
+      case 'KeyR': if (G.state === 'upgrade') rerollOffer(); break;
       case 'Digit1': case 'Digit2': case 'Digit3':
         if (G.state === 'upgrade') takeUpgrade(Number(e.code.slice(5)) - 1);
         break;
@@ -482,6 +512,17 @@
     G.cols = def.cols;
     G.rowCount = def.rows.length;
 
+    // A few raiders per wave are elites: triple health and score, and they
+    // always leave a power-up behind.
+    const total = def.rows.length * def.cols;
+    const eliteCount = Math.min(5, Math.floor(G.wave / 3) + (G.loop - 1));
+    const eliteSlots = {};
+    let placed = 0;
+    for (let guard = 0; placed < eliteCount && guard < 200; guard++) {
+      const k = randInt(0, total - 1);
+      if (!eliteSlots[k]) { eliteSlots[k] = true; placed++; }   // distinct slots only
+    }
+
     const styles = ['loop', 'top', 'side'];
     for (let r = 0; r < def.rows.length; r++) {
       const style = styles[r % styles.length];
@@ -491,6 +532,7 @@
           type: def.rows[r],
           row: r,
           col: c,
+          elite: !!eliteSlots[r * def.cols + c],
           style: style,
           side: c % 2 === 0 ? -1 : 1
         });
@@ -507,6 +549,7 @@
       if (s.delay > 0) continue;
       G.spawnQueue.splice(i, 1);
       const e = makeEnemy(s.type, s.row, s.col);
+      if (s.elite) { e.elite = true; e.hp = e.def.hp * 3; }
       const slot = slotPos(s.row, s.col);
       e.path = entryPath(s.style, s.side, { x: slot.x, y: slot.y });
       e.d = 0;
@@ -575,7 +618,7 @@
         if ((e.onArrive === 'return' || e.onArrive === 'gone') && e.y < H * 0.86) {
           e.fireTimer -= dt;
           if (e.fireTimer <= 0) {
-            e.fireTimer = rand(0.5, 1.3) / e.def.aim;
+            e.fireTimer = rand(0.5, 1.3) / e.def.aim / enemyFireMul();
             enemyShoot(e, bulletMul, true);
           }
         }
@@ -616,7 +659,7 @@
         if (ready.length) {
           // Prefer the bottom rows, the way the arcade original peels them off.
           ready.sort((a, b) => b.row - a.row || Math.random() - 0.5);
-          const n = Math.min(randInt(1, def.divers || 1), ready.length);
+          const n = Math.min(randInt(1, (def.divers || 1) + upLevel('swarm')), ready.length);
           for (let k = 0; k < n; k++) {
             const target = ready[Math.min(k, ready.length - 1)];
             setTimeout(() => { if (G.state === 'play' && G.enemies.indexOf(target) >= 0) startDive(target); }, k * 160);
@@ -630,7 +673,7 @@
       if (def.snipe) {
         G.snipeTimer -= dt;
         if (G.snipeTimer <= 0) {
-          G.snipeTimer = def.snipe / loopMul();
+          G.snipeTimer = def.snipe / loopMul() / enemyFireMul();
           const shooters = G.enemies.filter((e) => e.mode === 'formation');
           if (shooters.length) enemyShoot(pick(shooters), bulletMul, Math.random() < 0.4);
         }
@@ -651,8 +694,10 @@
     const speed = 720 * S;
     const w = player.weapon;
     // The lance hits harder and passes through, so it fires slower.
+    const hot = upLevel('overclock') && comboMult() >= 6 ? 1.3 : 1;
     player.cool = (player.rapid > 0 ? 0.085 : 0.185) * (w === 'pierce' ? 1.5 : 1)
-                  / (1 + 0.12 * upLevel('autoloader'));
+                  / (1 + 0.12 * upLevel('autoloader'))
+                  / hot / (upLevel('overheat') ? 1.3 : 1);
     const y = player.y - 13 * S;
 
     if (w === 'twin') {
@@ -671,6 +716,10 @@
       bolt(player.x, y, 0, -speed);
     }
 
+    if (upLevel('twinmount')) {
+      bolt(player.x - 14 * S, y + 6 * S, 0, -speed, 2.8 * S);
+      bolt(player.x + 14 * S, y + 6 * S, 0, -speed, 2.8 * S);
+    }
     if (player.wingmen > 0) {
       for (const d of player.drones) bolt(d.x, d.y - 8 * S, 0, -speed * 0.94, 2.6 * S);
     }
@@ -1319,6 +1368,7 @@
     G.shake = 14;
     Sound.playerDie();
     refreshChip();
+    if (upLevel('vengeance')) detonateBomb();
   }
 
   function killEnemy(index) {
@@ -1326,14 +1376,15 @@
     const diving = e.mode === 'path' && (e.onArrive === 'return' || e.onArrive === 'gone');
     bumpCombo();
     const mult = comboMult();
-    const pts = Math.round(e.def.pts * (diving ? 2 : 1) * (1 + 0.2 * (G.loop - 1)) * mult
-                           * (1 + 0.15 * upLevel('bounty')));
+    const pts = Math.round(e.def.pts * (diving ? 2 : 1) * (e.elite ? 3 : 1)
+                           * (1 + 0.2 * (G.loop - 1)) * mult
+                           * (1 + 0.15 * upLevel('bounty') + 0.6 * upLevel('bloodmoney')));
     addScore(pts);
     explode(e.x, e.y, e.def.color, diving ? 20 : 14, diving ? 1.2 : 1);
     if (diving || mult > 1) {
       floatText(e.x, e.y, String(pts) + (mult > 1 ? ' \u00d7' + mult : ''), mult > 1 ? '#8dff5a' : '#ffc94d');
     }
-    if (e.def.drop && Math.random() < e.def.drop * (1 + 0.6 * upLevel('salvage'))) {
+    if (e.elite || (e.def.drop && Math.random() < e.def.drop * dropMul())) {
       dropPowerup(e.x, e.y);
     }
     Sound.kill();
@@ -1341,23 +1392,48 @@
   }
 
   /**
-   * Permanent, run-long upgrades. One is chosen from three after every wave,
-   * so a run becomes a build rather than a string of random drops. Each is
-   * capped, and stops being offered once it is maxed.
+   * Refit cards. Upgrades are pure gains; pacts trade a real drawback for a
+   * bigger payoff. Rarity weights the draw, and anything at its cap drops out
+   * of the pool. Cards are offered after a boss falls, not every wave, so a
+   * refit is a reward for clearing one rather than routine housekeeping.
    */
+  const RARITY = {
+    common: { label: 'Common', weight: 58 },
+    rare:   { label: 'Rare',   weight: 30 },
+    epic:   { label: 'Epic',   weight: 13 },
+    pact:   { label: 'Pact',   weight: 20 }
+  };
+
   const UPGRADES = [
-    { id: 'autoloader', name: 'Autoloader',    cap: 4, blurb: 'Fire 12% faster.' },
-    { id: 'optics',     name: 'Targeting Optics', cap: 2, blurb: 'Boss core hits do +1 damage.' },
-    { id: 'nanoshield', name: 'Nanoshield',    cap: 2, blurb: 'Your barrier rebuilds itself over time.' },
-    { id: 'bombrack',   name: 'Bomb Rack',     cap: 2, blurb: 'Carry one more bomb, and take one now.' },
-    { id: 'chain',      name: 'Chain Extender', cap: 3, blurb: 'Combo window lasts 0.7s longer.' },
-    { id: 'overdrive',  name: 'Overdrive',     cap: 2, blurb: 'Combo multiplier caps 2 steps higher.' },
-    { id: 'salvage',    name: 'Salvage Crew',  cap: 3, blurb: 'Raiders drop power-ups far more often.' },
-    { id: 'escort',     name: 'Escort Contract', cap: 1, blurb: 'Start every wave with wingmen.' },
-    { id: 'spare',      name: 'Spare Ship',    cap: 3, blurb: 'One more ship in reserve, right now.' },
-    { id: 'bounty',     name: 'Bounty Contract', cap: 3, blurb: 'Kills are worth 15% more.' },
-    { id: 'tractor',    name: 'Tractor Rig',   cap: 1, blurb: 'Power-ups drift toward your ship.' }
+    { id: 'spare',      name: 'Spare Ship',       cap: 3, rarity: 'common', blurb: 'One more ship in reserve, right now.' },
+    { id: 'bounty',     name: 'Bounty Contract',  cap: 3, rarity: 'common', blurb: 'Kills are worth 15% more.' },
+    { id: 'chain',      name: 'Chain Extender',   cap: 3, rarity: 'common', blurb: 'Combo window lasts 0.7s longer.' },
+    { id: 'salvage',    name: 'Salvage Crew',     cap: 3, rarity: 'common', blurb: 'Raiders drop power-ups far more often.' },
+    { id: 'autoloader', name: 'Autoloader',       cap: 4, rarity: 'rare',   blurb: 'Fire 12% faster.' },
+    { id: 'bombrack',   name: 'Bomb Rack',        cap: 2, rarity: 'rare',   blurb: 'Carry one more bomb, and take one now.' },
+    { id: 'nanoshield', name: 'Nanoshield',       cap: 2, rarity: 'rare',   blurb: 'Your barrier rebuilds itself over time.' },
+    { id: 'tractor',    name: 'Tractor Rig',      cap: 1, rarity: 'rare',   blurb: 'Power-ups drift toward your ship.' },
+    { id: 'optics',     name: 'Targeting Optics', cap: 2, rarity: 'epic',   blurb: 'Boss core hits do +1 damage.' },
+    { id: 'overdrive',  name: 'Overdrive',        cap: 2, rarity: 'epic',   blurb: 'Combo multiplier caps 2 steps higher.' },
+    { id: 'escort',     name: 'Escort Contract',  cap: 1, rarity: 'epic',   blurb: 'Start every wave with wingmen.' },
+    { id: 'twinmount',  name: 'Twin Mount',       cap: 1, rarity: 'epic',   blurb: 'Outboard cannons add two bolts to every shot.' },
+    { id: 'overclock',  name: 'Overclock',        cap: 1, rarity: 'epic',   blurb: 'At \u00d76 combo or better, fire 30% faster.' },
+    { id: 'vengeance',  name: 'Vengeance',        cap: 1, rarity: 'epic',   blurb: 'Losing a ship sets off a smart bomb.' }
   ];
+
+  const PACTS = [
+    { id: 'bloodmoney', name: 'Blood Money', cap: 1, rarity: 'pact',
+      blurb: 'Kills are worth 60% more.', cost: 'Raiders fire 30% faster.' },
+    { id: 'overheat',   name: 'Overheat',    cap: 1, rarity: 'pact',
+      blurb: 'Fire 30% faster.', cost: 'Your combo window is 40% shorter.' },
+    { id: 'glasshull',  name: 'Glass Hull',  cap: 1, rarity: 'pact',
+      blurb: 'Take an extra refit pick right now.', cost: 'Lose a ship, permanently.' },
+    { id: 'swarm',      name: 'Swarm Pact',  cap: 1, rarity: 'pact',
+      blurb: 'Power-up drops are doubled.', cost: 'One more raider dives at a time.' }
+  ];
+
+  const CARDS = UPGRADES.concat(PACTS);
+  const cardById = (id) => CARDS.find((c) => c.id === id);
 
   const ROMAN = ['', 'I', 'II', 'III', 'IV'];
   const upLevel = (id) => G.upgrades[id] || 0;
@@ -1367,7 +1443,11 @@
   const COMBO_WINDOW = 2.6;
   const COMBO_MAX = 8;
 
-  const comboWindow = () => COMBO_WINDOW + 0.7 * upLevel('chain');
+  // Pacts bend these numbers against you as well as for you.
+  const enemyFireMul = () => 1 + 0.3 * upLevel('bloodmoney');
+  const dropMul = () => (1 + 0.6 * upLevel('salvage')) * (upLevel('swarm') ? 2 : 1);
+  const comboWindow = () =>
+    (COMBO_WINDOW + 0.7 * upLevel('chain')) * (upLevel('overheat') ? 0.6 : 1);
   const comboCap = () => COMBO_MAX + 2 * upLevel('overdrive');
   const comboMult = () => Math.min(comboCap(), 1 + Math.floor(G.combo / 5));
   const bombCap = () => 3 + upLevel('bombrack');
@@ -1594,57 +1674,104 @@
     G.state = 'clear';
   }
 
-  /** Three eligible upgrades, offered between waves. */
-  function offerUpgrade() {
-    // A run that just lost its last ship goes to the game-over screen instead.
-    if (!player.alive && G.lives <= 0) { advanceWave(); return; }
-    const pool = UPGRADES.filter((u) => upLevel(u.id) < u.cap);
-    if (!pool.length) { advanceWave(); return; }
-
-    // Shuffle a copy and take up to three.
-    const picks = pool.slice();
-    for (let i = picks.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const t = picks[i]; picks[i] = picks[j]; picks[j] = t;
+  /** Weighted draw of n distinct cards from whatever is not yet capped. */
+  function drawOffer(n) {
+    const eligible = CARDS.filter((c) => upLevel(c.id) < c.cap);
+    const taken = [];
+    while (taken.length < n) {
+      const avail = eligible.filter((c) => taken.indexOf(c) < 0);
+      if (!avail.length) break;
+      let total = 0;
+      for (const c of avail) total += RARITY[c.rarity].weight;
+      let roll = Math.random() * total;
+      let chosen = avail[0];
+      for (const c of avail) {
+        roll -= RARITY[c.rarity].weight;
+        if (roll <= 0) { chosen = c; break; }
+      }
+      taken.push(chosen);
     }
-    G.offer = picks.slice(0, 3);
+    return taken;
+  }
 
-    el('upgradeCards').innerHTML = G.offer.map((u, i) => {
-      const next = upLevel(u.id) + 1;
-      const tier = u.cap > 1 ? '<span class="up-tier">' + ROMAN[next] + '</span>' : '';
-      const owned = upLevel(u.id) > 0
-        ? '<span class="up-owned">have ' + ROMAN[upLevel(u.id)] + '</span>' : '';
-      return '<button class="up-card" data-i="' + i + '">' +
+  function renderOffer() {
+    el('upgradePicks').textContent = G.picks > 1
+      ? G.picks + ' picks left' : 'Pick one';
+    const rr = el('rerollBtn');
+    rr.textContent = 'Reroll (' + G.rerolls + ')';
+    rr.disabled = G.rerolls <= 0;
+
+    el('upgradeCards').innerHTML = G.offer.map((c, i) => {
+      const lvl = upLevel(c.id);
+      const tier = c.cap > 1 ? '<span class="up-tier">' + ROMAN[lvl + 1] + '</span>' : '';
+      const owned = lvl > 0 ? '<span class="up-owned">have ' + ROMAN[lvl] + '</span>' : '';
+      const cost = c.cost ? '<span class="up-cost">' + c.cost + '</span>' : '';
+      return '<button class="up-card up-' + c.rarity + '" data-i="' + i + '">' +
              '<span class="up-key">' + (i + 1) + '</span>' +
-             '<span class="up-name">' + u.name + tier + '</span>' +
-             '<span class="up-blurb">' + u.blurb + '</span>' + owned +
+             '<span class="up-rarity">' + RARITY[c.rarity].label + '</span>' +
+             '<span class="up-name">' + c.name + tier + '</span>' +
+             '<span class="up-blurb">' + c.blurb + '</span>' + cost + owned +
              '</button>';
     }).join('');
 
     for (const btn of el('upgradeCards').querySelectorAll('.up-card')) {
       btn.addEventListener('click', () => takeUpgrade(Number(btn.dataset.i)));
     }
+  }
+
+  /**
+   * Opens the refit. `then` is what to run once every pick is spent, so the
+   * same screen serves a boss reward and the run-opening free pick.
+   */
+  function offerUpgrade(picks, then) {
+    G.refitNext = then || advanceWave;
+    // A run that just lost its last ship goes to the game-over screen instead.
+    if (!player.alive && G.lives <= 0) { G.refitNext(); return; }
+    G.picks = picks;
+    G.offer = drawOffer(3);
+    if (!G.offer.length) { G.refitNext(); return; }
+
+    renderOffer();
     hideAnnounce();
     G.state = 'upgrade';
     updateBombs();
     showScreen('upgrade');
   }
 
+  function rerollOffer() {
+    if (G.state !== 'upgrade' || G.rerolls <= 0) return;
+    G.rerolls--;
+    G.offer = drawOffer(3);
+    Sound.powerup();
+    renderOffer();
+  }
+
   function takeUpgrade(index) {
     if (G.state !== 'upgrade' || !G.offer || !G.offer[index]) return;
-    const u = G.offer[index];
-    G.upgrades[u.id] = upLevel(u.id) + 1;
+    const c = G.offer[index];
+    G.upgrades[c.id] = upLevel(c.id) + 1;
+    G.taken.push(c.id);
 
-    // A couple of them pay out the moment you take them.
-    if (u.id === 'spare') { G.lives++; updateLives(); }
-    if (u.id === 'bombrack') { player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); }
-    if (u.id === 'nanoshield') G.shieldTimer = upLevel('nanoshield') === 1 ? 22 : 13;
+    // Cards that pay out, or charge, the moment they are taken.
+    if (c.id === 'spare') { G.lives++; updateLives(); }
+    if (c.id === 'bombrack') { player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); }
+    if (c.id === 'nanoshield') G.shieldTimer = upLevel('nanoshield') === 1 ? 22 : 13;
+    if (c.id === 'glasshull') {
+      G.picks++;                       // the extra pick this pact buys
+      if (G.lives > 1) { G.lives--; updateLives(); }
+    }
 
-    G.offer = null;
+    G.picks--;
     Sound.levelUp();
+
+    if (G.picks > 0) {
+      G.offer = drawOffer(3);
+      if (G.offer.length) { renderOffer(); return; }
+    }
+    G.offer = null;
     showScreen(null);
     updateBombs();
-    advanceWave();
+    G.refitNext();
   }
 
   function advanceWave() {
@@ -1830,6 +1957,20 @@
 
     ctx.save();
     ctx.translate(e.x, e.y);
+
+    if (e.elite) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(255,201,77,' + (0.5 + 0.25 * Math.sin(e.t * 5)) + ')';
+      ctx.lineWidth = 2 * S;
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) {
+        const a = e.t * 1.4 + i * (Math.PI * 2 / 3);
+        ctx.arc(0, 0, r * 1.35, a, a + 0.7);
+      }
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
     ctx.rotate(e.angle);
     ctx.lineJoin = 'round';
 
@@ -2505,7 +2646,12 @@
     if (G.state === 'clear') {
       updateEnemies(edt);
       G.waveClearTimer -= dt;
-      if (G.waveClearTimer <= 0) { hideAnnounce(); offerUpgrade(); }
+      if (G.waveClearTimer <= 0) {
+        hideAnnounce();
+        // The refit is the boss reward; ordinary waves roll straight on.
+        if (waveDef().boss) offerUpgrade(2, advanceWave);
+        else advanceWave();
+      }
       return;
     }
 
@@ -2542,7 +2688,7 @@
   // 15. Screens and run control
   // =========================================================
 
-  const SCREENS = ['menu', 'howto', 'paused', 'gameover', 'upgrade'];
+  const SCREENS = ['menu', 'howto', 'paused', 'gameover', 'upgrade', 'hangar'];
 
   function showScreen(id) {
     for (const s of SCREENS) el(s).classList.toggle('active', s === id);
@@ -2561,7 +2707,9 @@
     G.score = 0;
     G.wave = start;
     G.loop = 1 + Math.floor((start - 1) / WAVES.length);
-    G.lives = 3;
+    G.lives = 3 + perkLevel('reserve');
+    G.rerolls = 1 + perkLevel('dice');
+    G.taken = [];
     G.nextExtraLife = 20000;
     G.startBest = records.best;
     G.enemies.length = 0;
@@ -2576,6 +2724,7 @@
     G.waveClearTimer = 0.9;
     G.upgrades = {};
     G.offer = null;
+    G.taken = [];
     G.shieldTimer = 0;
     breakCombo();
 
@@ -2589,7 +2738,7 @@
     player.rapid = 0;
     player.wingmen = 0;
     player.drones = [];
-    player.bombs = 0;
+    player.bombs = perkLevel('munitions');
     player.cool = 0;
     G.slow = 0;
     G.flash = 0;
@@ -2603,7 +2752,9 @@
     updateComboHud();
     el('hud').classList.remove('hidden');
     showScreen(null);
-    startWave();
+    // Shakedown Run hands you a pick before the first wave.
+    if (perkLevel('headstart')) offerUpgrade(1, startWave);
+    else startWave();
   }
 
   function pauseGame() {
@@ -2652,6 +2803,29 @@
     saveRecords();
     el('finalScore').textContent = G.score.toLocaleString();
     el('finalSub').textContent = 'Wave ' + G.wave + (G.loop > 1 ? ' · Loop ' + G.loop : '');
+    const earned = G.practice ? 0 : scrapEarned();
+    if (earned) {
+      records.scrap += earned;
+      Store.set('scrap', records.scrap);
+    }
+    el('scrapEarned').textContent = '+' + earned + ' scrap';
+    el('scrapEarned').classList.toggle('hidden', !earned);
+
+    // Show what the run was built out of.
+    const build = el('runBuild');
+    if (G.taken && G.taken.length) {
+      const counts = {};
+      for (const id of G.taken) counts[id] = (counts[id] || 0) + 1;
+      build.innerHTML = Object.keys(counts).map((id) => {
+        const c = cardById(id);
+        return '<span class="build-chip build-' + c.rarity + '">' + c.name +
+               (counts[id] > 1 ? ' ' + ROMAN[counts[id]] : '') + '</span>';
+      }).join('');
+      build.classList.remove('hidden');
+    } else {
+      build.classList.add('hidden');
+    }
+
     el('overTitle').textContent = 'Game Over';
     el('newBest').classList.toggle('hidden', !(G.score > (G.startBest || 0)));
     refreshMenuStats();
@@ -2664,7 +2838,49 @@
     Store.set('bestWave', records.bestWave);
   }
 
+  function renderHangar() {
+    el('hangarScrap').textContent = records.scrap.toLocaleString();
+    el('hangarList').innerHTML = PERKS.map((p) => {
+      const lvl = perkLevel(p.id);
+      const maxed = lvl >= p.cap;
+      const cost = maxed ? 0 : p.costs[lvl];
+      const afford = !maxed && records.scrap >= cost;
+      const tier = p.cap > 1 ? '<span class="up-tier">' + ROMAN[Math.min(lvl + 1, p.cap)] + '</span>' : '';
+      return '<div class="perk' + (maxed ? ' perk-maxed' : '') + '">' +
+             '<div class="perk-text">' +
+             '<span class="perk-name">' + p.name + (maxed ? '' : tier) + '</span>' +
+             '<span class="perk-blurb">' + p.blurb + '</span>' +
+             (lvl ? '<span class="up-owned">owned ' + ROMAN[lvl] + '</span>' : '') +
+             '</div>' +
+             (maxed
+               ? '<span class="perk-buy perk-done">MAX</span>'
+               : '<button class="perk-buy" data-id="' + p.id + '"' + (afford ? '' : ' disabled') + '>' +
+                 cost + '</button>') +
+             '</div>';
+    }).join('');
+
+    for (const btn of el('hangarList').querySelectorAll('.perk-buy[data-id]')) {
+      btn.addEventListener('click', () => buyPerk(btn.dataset.id));
+    }
+  }
+
+  function buyPerk(id) {
+    const p = PERKS.find((x) => x.id === id);
+    const lvl = perkLevel(id);
+    if (!p || lvl >= p.cap) return;
+    const cost = p.costs[lvl];
+    if (records.scrap < cost) return;
+    records.scrap -= cost;
+    records.perks[id] = lvl + 1;
+    Store.set('scrap', records.scrap);
+    Store.set('perks', records.perks);
+    Sound.powerup();
+    renderHangar();
+    refreshMenuStats();
+  }
+
   function refreshMenuStats() {
+    el('menuScrap').textContent = records.scrap.toLocaleString();
     el('menuBest').textContent = records.best.toLocaleString();
     el('menuWave').textContent = records.bestWave;
   }
@@ -2700,6 +2916,9 @@
   el('pauseBtn').addEventListener('click', pauseGame);
   el('bombBtn').addEventListener('click', (e) => { e.preventDefault(); useBomb(); });
   el('btnHow').addEventListener('click', () => showScreen('howto'));
+  el('btnHangar').addEventListener('click', () => { renderHangar(); showScreen('hangar'); });
+  el('btnHangarBack').addEventListener('click', () => showScreen('menu'));
+  el('rerollBtn').addEventListener('click', rerollOffer);
   el('btnHowBack').addEventListener('click', () => showScreen('menu'));
 
   togglePainters.push(bindToggle('btnAuto', 'autoFire', 'Auto-fire'));

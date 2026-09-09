@@ -318,7 +318,7 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
   gap: 4px;
 }
 .menu-stats .k { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
-.menu-stats .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.menu-stats .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .toggles { display: flex; gap: 8px; margin: 6px 0 2px; }
 .toggle {
@@ -393,6 +393,121 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
   text-transform: uppercase;
   color: var(--muted);
 }
+
+.picks-left { color: var(--gold); font-weight: 700; }
+
+.reroll-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  font: 700 12px/1 inherit;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border-radius: 11px;
+  border: 1px dashed rgba(96, 148, 224, .55);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.reroll-btn:not(:disabled):hover { color: var(--accent); border-color: var(--accent); }
+.reroll-btn:disabled { opacity: .35; cursor: default; }
+
+/* Rarity reads from the card's edge and its label. */
+.up-rarity {
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.up-common { border-color: rgba(143, 163, 196, .45); }
+.up-common .up-name { color: var(--ink); }
+.up-common .up-key { border-color: rgba(143, 163, 196, .5); color: #8fa3c4; }
+.up-rare   { border-color: rgba(77, 166, 255, .6); background: rgba(77, 166, 255, .07); }
+.up-rare .up-rarity, .up-rare .up-name { color: #4da6ff; }
+.up-epic   { border-color: rgba(176, 124, 255, .7); background: rgba(176, 124, 255, .09); }
+.up-epic .up-rarity, .up-epic .up-name { color: #c9a6ff; }
+.up-epic .up-key { border-color: rgba(176, 124, 255, .6); color: #c9a6ff; }
+.up-pact   { border-color: rgba(255, 90, 43, .7); background: rgba(255, 90, 43, .09); }
+.up-pact .up-rarity, .up-pact .up-name { color: #ff8548; }
+.up-pact .up-key { border-color: rgba(255, 90, 43, .6); color: #ff8548; }
+
+.up-cost {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #ffb59a;
+}
+.up-cost::before { content: "Cost: "; font-weight: 700; letter-spacing: .04em; }
+
+/* --------------------------- Hangar --------------------------- */
+.scrap-bank {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 201, 77, .4);
+  background: rgba(255, 201, 77, .09);
+}
+.scrap-bank .k { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.scrap-bank .v { font-size: 24px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+
+.perk-list { display: grid; gap: 9px; margin-bottom: 16px; }
+.perk {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+}
+.perk-maxed { opacity: .6; }
+.perk-text { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.perk-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+.perk-blurb { font-size: 12px; line-height: 1.4; color: #cddaf0; }
+
+.perk-buy {
+  flex: none;
+  min-width: 54px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 201, 77, .55);
+  background: rgba(255, 201, 77, .12);
+  color: var(--gold);
+  font: 800 13px/1 inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.perk-buy:disabled { opacity: .35; cursor: default; }
+.perk-done { border-style: dashed; background: none; cursor: default; text-align: center; }
+
+/* --------------------- End-of-run summary --------------------- */
+.scrap-earned {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  color: var(--gold);
+}
+.run-build {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.build-chip {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #cddaf0;
+}
+.build-rare  { border-color: rgba(77, 166, 255, .6); color: #4da6ff; }
+.build-epic  { border-color: rgba(176, 124, 255, .7); color: #c9a6ff; }
+.build-pact  { border-color: rgba(255, 90, 43, .7); color: #ff8548; }
 
 /* ------------------------- How to play ------------------------ */
 .how-list { margin: 0 0 16px; padding-left: 18px; }
