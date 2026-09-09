@@ -73,6 +73,66 @@ html, body {
   text-shadow: 0 0 12px rgba(77, 166, 255, .55);
 }
 
+/* Combo: the multiplier plus a bar that drains as the chain window closes. */
+.combo { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+.combo-mult {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--laser);
+  text-shadow: 0 0 10px rgba(141, 255, 90, .55);
+  font-variant-numeric: tabular-nums;
+  animation: pop .28s ease-out;
+}
+.combo-bar {
+  width: 46px;
+  height: 3px;
+  border-radius: 99px;
+  background: rgba(141, 255, 90, .18);
+  overflow: hidden;
+}
+.combo-fill {
+  height: 100%;
+  background: var(--laser);
+  box-shadow: 0 0 8px rgba(141, 255, 90, .8);
+}
+
+/* Held smart bombs, reachable with the off thumb. */
+.bomb-btn {
+  position: absolute;
+  left: calc(14px + env(safe-area-inset-left));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 6;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 90, 43, .75);
+  background: rgba(10, 16, 32, .62);
+  color: #ff5a2b;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bomb-btn:active { transform: scale(.93); background: rgba(255, 90, 43, .3); }
+.bomb-ring {
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 90, 43, .55);
+  box-shadow: 0 0 14px rgba(255, 90, 43, .5), 0 0 14px rgba(255, 90, 43, .35) inset;
+  animation: pulse 1.4s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bomb-ring { animation: none; }
+}
+.bomb-count {
+  position: relative;
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffe0d2;
+}
+
 .lives { display: flex; gap: 5px; align-items: center; height: 18px; }
 .life-icon { width: 15px; height: 15px; opacity: .95; }
 

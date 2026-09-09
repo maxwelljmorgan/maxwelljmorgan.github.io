@@ -24,6 +24,10 @@
       <div class="hud-block">
         <span class="hud-label">Score</span>
         <span id="hudScore" class="hud-value">0</span>
+        <div id="comboWrap" class="combo hidden">
+          <span id="hudMult" class="combo-mult">&times;2</span>
+          <div class="combo-bar"><div id="comboFill" class="combo-fill"></div></div>
+        </div>
       </div>
       <div class="hud-block center">
         <span class="hud-label">Wave</span>
@@ -44,6 +48,12 @@
       <div class="boss-bar"><div id="bossBarFill" class="boss-bar-fill"></div></div>
     </div>
   </div>
+
+  <!-- Smart bombs are held, not spent on pickup: tap to detonate -->
+  <button id="bombBtn" class="bomb-btn hidden" aria-label="Detonate smart bomb">
+    <span class="bomb-ring"></span>
+    <span id="bombCount" class="bomb-count">0</span>
+  </button>
 
   <!-- ======================== ANNOUNCEMENT ======================= -->
   <div id="announce" class="announce hidden">
@@ -77,7 +87,9 @@
         <li><b>Move</b> — drag anywhere on the screen. Your ship follows your thumb, so you can keep it out from under your finger.</li>
         <li><b>Shoot</b> — auto-fire is on by default. Turn it off to tap-to-fire, or use <b>Space</b> and arrow keys on a desktop.</li>
         <li><b>Formations</b> — clear every raider in the wave to advance. Diving enemies are worth double.</li>
+        <li><b>Combo</b> — kills chain while the bar under your score is draining. Every five kills adds a multiplier, up to &times;8. Going quiet drops it, and so does getting hit.</li>
         <li><b>Bosses</b> — waves 4, 8 and 12 end in a boss. Watch for the red charge glow: that means a beam is about to fire.</li>
+        <li><b>Weak points</b> — every boss has a glowing core. Hits there do double damage, and it beats faster as its armour fails.</li>
         <li><b>Power-ups</b> — shoot the red command craft and the armoured gun platforms to drop them. Losing a ship costs you whatever you were carrying.</li>
       </ul>
       <h3 class="legend-head">Weapons <span>one at a time — a new one replaces the last</span></h3>
@@ -94,9 +106,13 @@
         <div class="legend-item"><i class="pu pu-wing">V</i><span><b>Wingmen</b> — two drones fly your flanks and fire with you</span></div>
       </div>
 
+      <h3 class="legend-head">Carried <span>saved until you spend it</span></h3>
+      <div class="legend">
+        <div class="legend-item"><i class="pu pu-bomb">B</i><span><b>Smart bomb</b> — stock up to three. Tap the bomb button (or <b>B</b>) to wipe every shot on screen and hit every raider at once. Bombs survive losing a ship.</span></div>
+      </div>
+
       <h3 class="legend-head">One-shot <span>they go off the moment you touch them</span></h3>
       <div class="legend">
-        <div class="legend-item"><i class="pu pu-bomb">B</i><span><b>Smart bomb</b> — wipes every shot on screen and hits every raider at once</span></div>
         <div class="legend-item"><i class="pu pu-warp">T</i><span><b>Time warp</b> — the raiders and their fire crawl for six seconds. You don't.</span></div>
         <div class="legend-item"><i class="pu pu-life">1</i><span><b>Extra life</b> — rare, grab it</span></div>
       </div>

@@ -10,6 +10,9 @@ dependencies — open `index.html` and play.
 - **Shoot** — auto-fire is on by default. Turn it off in the menu to
   tap-to-fire. On a desktop: arrow keys / WASD, `Space` to fire, `P` or
   `Esc` to pause.
+- **Combo** — kills chain while the bar under your score is draining. Every
+  five kills adds a multiplier, up to ×8. Going quiet drops it, and so does
+  getting hit.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
@@ -19,7 +22,8 @@ dependencies — open `index.html` and play.
 ## Power-ups
 
 Weapons are exclusive — picking one up replaces the one you have. Everything
-else stacks on top.
+else stacks on top. Smart bombs are held rather than spent on pickup, and
+they survive losing a ship; every other effect is lost with it.
 
 | | Power-up | Effect |
 | --- | --- | --- |
@@ -29,7 +33,7 @@ else stacks on top.
 | `R` | Rapid fire | Roughly double the fire rate |
 | `S` | Barrier | Absorbs one hit |
 | `V` | Wingmen | Two drones fly your flanks and fire with you |
-| `B` | Smart bomb | Instant: clears every shot on screen and hits every raider at once |
+| `B` | Smart bomb | Stocks up to three. Tap the bomb button (or `B`) to clear every shot on screen and hit every raider at once |
 | `T` | Time warp | Instant: raiders and their fire run at 40% for six seconds — you don't |
 | `1` | Extra life | Rare |
 
@@ -45,6 +49,11 @@ Active effects show as badges in the HUD with their remaining seconds.
 
 Each boss has three phases; armour breaches at 60% and 30% health reset its
 attack script and clear the screen of shots.
+
+Every boss carries an exposed core, seated in a dark housing and beating
+faster as its armour fails. Hits on the core do double damage — it is a
+small, constantly moving target, so aiming for it is the difference between
+a long fight and a short one.
 
 ## Art direction
 

@@ -123,6 +123,8 @@
     powerup() { this.tone(520, 0.09, 'triangle', 0.07); setTimeout(() => this.tone(780, 0.14, 'triangle', 0.07), 90); },
     warn() { this.tone(180, 0.3, 'sawtooth', 0.06, 320); },
     charge() { this.tone(120, 0.9, 'sawtooth', 0.05, 900); },
+    combo(mult) { this.tone(520 + mult * 90, 0.08, 'square', 0.045); },
+    crit() { this.tone(1100, 0.06, 'square', 0.05, 620); },
     levelUp() {
       [440, 587, 740, 880].forEach((f, i) => setTimeout(() => this.tone(f, 0.13, 'triangle', 0.06), i * 90));
     }
@@ -232,6 +234,9 @@
     escortTimer: 6,
     waveClearTimer: 0,
     shake: 0,
+    combo: 0,                   // kills chained inside the combo window
+    comboTimer: 0,
+    lastMult: 1,
     shock: null,                // smart-bomb blast wave
     slow: 0,                    // time-warp timer
     flash: 0,                   // smart-bomb screen flash
@@ -250,6 +255,7 @@
     rapid: 0,
     wingmen: 0,
     drones: [],
+    bombs: 0,                   // smart bombs held, spent on demand
     deadTimer: 0,
     thrust: 0
   };
@@ -314,6 +320,7 @@
       case 'ArrowUp': case 'KeyW': input.up = true; break;
       case 'ArrowDown': case 'KeyS': input.down = true; break;
       case 'Space': input.firing = true; e.preventDefault(); break;
+      case 'KeyB': useBomb(); break;
       case 'KeyP': case 'Escape':
         if (G.state === 'play') pauseGame();
         else if (G.state === 'paused') resumeGame();
@@ -773,11 +780,26 @@
       case 'shield': player.shield = true; break;
       case 'wingmen': launchWingmen(16); break;
       case 'warp': G.slow = 6; Sound.tone(760, 0.5, 'sine', 0.06, 180); break;
-      case 'bomb': detonateBomb(); break;
+      case 'bomb': player.bombs = Math.min(3, player.bombs + 1); updateBombs(); break;
       case 'life': G.lives++; updateLives(); break;
     }
     floatText(player.x, player.y - 26 * S, def.label, def.color);
     refreshChip();
+  }
+
+  /** Spends one held bomb, if there is one and the ship is flying. */
+  function useBomb() {
+    if (player.bombs <= 0 || !player.alive || G.state !== 'play') return;
+    player.bombs--;
+    updateBombs();
+    detonateBomb();
+  }
+
+  function updateBombs() {
+    const btn = el('bombBtn');
+    el('bombCount').textContent = player.bombs;
+    btn.classList.toggle('hidden', player.bombs <= 0 || G.state === 'menu' ||
+                                   G.state === 'over' || G.state === 'paused');
   }
 
   /** Clears the screen: every shot gone, every raider hit at once. */
@@ -790,7 +812,8 @@
     for (let i = G.enemies.length - 1; i >= 0; i--) {
       const e = G.enemies[i];
       explode(e.x, e.y, e.def.color, 16, 1.2);
-      addScore(e.def.pts);
+      bumpCombo();
+      addScore(Math.round(e.def.pts * comboMult()));
       G.enemies.splice(i, 1);
     }
     if (G.boss) damageBoss(10);
@@ -802,7 +825,7 @@
 
   const BOSS_DEFS = {
     sentinel: {
-      name: 'SENTINEL', hp: 78, r: 44, color: '#8496b5', plate: '#465873', glow: '#cfe0ff', core: '#ff3b1f', shot: '#ff8c42',
+      name: 'SENTINEL', hp: 90, r: 44, coreAt: { x: 0, y: -0.02, r: 0.30 }, color: '#8496b5', plate: '#465873', glow: '#cfe0ff', core: '#ff3b1f', shot: '#ff8c42',
       pools: [
         ['spread', 'aimed', 'escort'],
         ['spread', 'aimed', 'beam', 'escort'],
@@ -810,7 +833,7 @@
       ]
     },
     queen: {
-      name: 'HIVE QUEEN', hp: 122, r: 48, color: '#7d6bb8', plate: '#3c3168', glow: '#d9ccff', core: '#7dff4d', shot: '#b06bff',
+      name: 'HIVE QUEEN', hp: 140, r: 48, coreAt: { x: 0, y: 0, r: 0.40 }, color: '#7d6bb8', plate: '#3c3168', glow: '#d9ccff', core: '#7dff4d', shot: '#b06bff',
       pools: [
         ['radial', 'escort', 'aimed'],
         ['radial', 'tractor', 'wall', 'escort'],
@@ -818,7 +841,7 @@
       ]
     },
     dread: {
-      name: 'DREADNOUGHT', hp: 186, r: 54, color: '#75808f', plate: '#3a424f', glow: '#ffd9a8', core: '#ff8c1f', shot: '#ff6b35',
+      name: 'DREADNOUGHT', hp: 214, r: 54, coreAt: { x: 0, y: -0.06, r: 0.26 }, color: '#75808f', plate: '#3a424f', glow: '#ffd9a8', core: '#ff8c1f', shot: '#ff6b35',
       pools: [
         ['wall', 'missiles', 'aimed'],
         ['wall', 'missiles', 'sweep', 'escort'],
@@ -841,7 +864,7 @@
       r: d.r * S,
       x: W / 2, y: -d.r * S * 1.6,
       homeY: clamp(H * 0.27, 140 * S, 224 * S),
-      t: 0, flash: 0, entering: true,
+      t: 0, flash: 0, coreFlash: 0, entering: true,
       act: { name: 'idle', t: 0, dur: 1.6, step: 0 },
       lastAction: '',
       beam: null,
@@ -902,6 +925,7 @@
     if (!b) return;
     b.t += dt;
     if (b.flash > 0) b.flash -= dt;
+    if (b.coreFlash > 0) b.coreFlash -= dt;
     b.phase = bossPhase(b);
 
     // Slide into position before opening fire.
@@ -1048,6 +1072,12 @@
       default:
         b.beam = null;
     }
+  }
+
+  /** The exposed core: a small, moving target that takes double damage. */
+  function bossCoreHit(b, x, y, pad) {
+    const c = b.def.coreAt;
+    return hypot(x - (b.x + c.x * b.r), y - (b.y + c.y * b.r)) < c.r * b.r + (pad || 0);
   }
 
   /** Bosses are wider than they are tall, so test against an ellipse. */
@@ -1241,6 +1271,7 @@
     if (player.shield) {
       player.shield = false;
       player.invuln = 1.1;
+      breakCombo();
       explode(player.x, player.y, '#5cd6ff', 16, 1);
       floatText(player.x, player.y - 24 * S, 'BARRIER DOWN', '#5cd6ff');
       Sound.hit();
@@ -1249,6 +1280,7 @@
     }
     player.alive = false;
     player.deadTimer = 1.6;
+    breakCombo();
     G.lives--;
     updateLives();
     explode(player.x, player.y, '#9fd8ff', 34, 1.6);
@@ -1260,13 +1292,53 @@
   function killEnemy(index) {
     const e = G.enemies[index];
     const diving = e.mode === 'path' && (e.onArrive === 'return' || e.onArrive === 'gone');
-    const pts = Math.round(e.def.pts * (diving ? 2 : 1) * (1 + 0.2 * (G.loop - 1)));
+    bumpCombo();
+    const mult = comboMult();
+    const pts = Math.round(e.def.pts * (diving ? 2 : 1) * (1 + 0.2 * (G.loop - 1)) * mult);
     addScore(pts);
     explode(e.x, e.y, e.def.color, diving ? 20 : 14, diving ? 1.2 : 1);
-    if (diving) floatText(e.x, e.y, String(pts), '#ffd166');
+    if (diving || mult > 1) {
+      floatText(e.x, e.y, String(pts) + (mult > 1 ? ' \u00d7' + mult : ''), mult > 1 ? '#8dff5a' : '#ffc94d');
+    }
     if (e.def.drop && Math.random() < e.def.drop) dropPowerup(e.x, e.y);
     Sound.kill();
     G.enemies.splice(index, 1);
+  }
+
+  // Kills chain while the window keeps being refreshed; the multiplier climbs
+  // a step every five kills and resets the moment you are hit or go quiet.
+  const COMBO_WINDOW = 2.6;
+  const COMBO_MAX = 8;
+
+  const comboMult = () => Math.min(COMBO_MAX, 1 + Math.floor(G.combo / 5));
+
+  function bumpCombo() {
+    G.combo++;
+    G.comboTimer = COMBO_WINDOW;
+    const m = comboMult();
+    if (m > G.lastMult) {
+      G.lastMult = m;
+      Sound.combo(m);
+      const chip = el('hudMult');
+      chip.style.animation = 'none';
+      void chip.offsetWidth;
+      chip.style.animation = '';
+    }
+  }
+
+  function breakCombo() {
+    G.combo = 0;
+    G.comboTimer = 0;
+    G.lastMult = 1;
+  }
+
+  function updateComboHud() {
+    const wrap = el('comboWrap');
+    const on = G.combo > 0 && comboMult() > 1;
+    wrap.classList.toggle('hidden', !on);
+    if (!on) return;
+    el('hudMult').textContent = '\u00d7' + comboMult();
+    el('comboFill').style.width = (100 * clamp(G.comboTimer / COMBO_WINDOW, 0, 1)) + '%';
   }
 
   const BOSS_HIT_ID = -1;      // stands in for the boss in a pierce hit list
@@ -1298,9 +1370,16 @@
         // Hold the reference: the killing blow clears G.boss.
         const boss = G.boss;
         if (b.pierce) b.hit.push(BOSS_HIT_ID); else spent = true;
-        damageBoss(1);
-        explode(b.x, b.y, boss.def.glow, 5, 0.6);
-        Sound.hit();
+        const crit = bossCoreHit(boss, b.x, b.y, b.r);
+        damageBoss(crit ? 2 : 1);
+        if (crit) {
+          boss.coreFlash = 0.12;
+          explode(b.x, b.y, '#ffffff', 10, 0.9);
+          Sound.crit();
+        } else {
+          explode(b.x, b.y, boss.def.glow, 5, 0.6);
+          Sound.hit();
+        }
       }
 
       if (spent) G.pBullets.splice(i, 1);
@@ -1770,6 +1849,9 @@
     // The core beats faster the closer the machine is to breaking apart.
     const beat = 0.72 + 0.28 * Math.sin(b.t * (4 + b.phase * 2.4));
 
+    // Draw the shockwave ring for a core hit under the hull art.
+    const coreRing = b.coreFlash > 0 ? b.coreFlash / 0.12 : 0;
+
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.lineJoin = 'round';
@@ -1829,12 +1911,16 @@
       ctx.fillRect(-r * 0.48, -r * 0.44, r * 0.96, r * 0.1);
       ctx.fillRect(-r * 0.4, r * 0.52, r * 0.8, r * 0.1);
 
-      // Weak point
+      // Weak point, seated in a dark housing
+      ctx.fillStyle = '#141c2b';
+      ctx.beginPath();
+      ctx.ellipse(0, -r * 0.02, r * 0.36, r * 0.26, 0, 0, PI2);
+      ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = charging ? '#fff3a8' : b.def.core;
       ctx.globalAlpha = beat;
       ctx.beginPath();
-      ctx.ellipse(0, -r * 0.02, r * 0.32, r * 0.22, 0, 0, PI2);
+      ctx.ellipse(0, -r * 0.02, r * 0.30, r * 0.21, 0, 0, PI2);
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.fillStyle = 'rgba(255,255,255,.9)';
@@ -1882,7 +1968,11 @@
         ctx.fill();
       }
 
-      // Iris core
+      // Iris core, seated in a dark housing
+      ctx.fillStyle = '#150c26';
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.5, 0, PI2);
+      ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = beat;
       ctx.fillStyle = b.act.name === 'tractor' ? '#eaffdc' : b.def.core;
@@ -1950,7 +2040,11 @@
       ctx.fillStyle = (charging || (b.beam && b.beam.active)) ? '#fff3a8' : '#4a5462';
       ctx.fillRect(-r * 0.24, r * 0.55, r * 0.48, r * 0.6);
 
-      // Reactor core
+      // Reactor core, seated in a dark housing
+      ctx.fillStyle = '#1a1206';
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.06, r * 0.31, 0, PI2);
+      ctx.fill();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = beat;
       ctx.fillStyle = b.def.core;
@@ -1962,6 +2056,17 @@
       ctx.beginPath();
       ctx.arc(0, -r * 0.06, r * 0.1, 0, PI2);
       ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    if (coreRing > 0) {
+      const c = b.def.coreAt;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(255,255,255,' + coreRing + ')';
+      ctx.lineWidth = 2.5 * S;
+      ctx.beginPath();
+      ctx.arc(c.x * r, c.y * r, c.r * r * (1 + (1 - coreRing) * 0.9), 0, PI2);
+      ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
     }
 
@@ -2108,15 +2213,19 @@
         ctx.restore();
         ctx.globalCompositeOperation = 'lighter';
       } else {
+        ctx.globalAlpha = 0.4;
         ctx.fillStyle = b.color;
-        ctx.globalAlpha = 0.55;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r * 1.8, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, b.r * 2.1, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = b.color;
         ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r * 0.6, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, b.r * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff4e6';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r * 0.5, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -2262,6 +2371,12 @@
 
     if (G.state === 'menu' || G.state === 'over' || G.state === 'paused') return;
 
+    if (G.comboTimer > 0) {
+      G.comboTimer -= dt;
+      if (G.comboTimer <= 0) breakCombo();
+    }
+    updateComboHud();
+
     updatePlayer(dt);
     updateBullets(dt, edt);
     updatePowerups(dt);
@@ -2344,6 +2459,7 @@
     G.boss = null;
     G.shake = 0;
     G.waveClearTimer = 0.9;
+    breakCombo();
 
     player.alive = true;
     player.x = player.tx = W / 2;
@@ -2355,6 +2471,7 @@
     player.rapid = 0;
     player.wingmen = 0;
     player.drones = [];
+    player.bombs = 0;
     player.cool = 0;
     G.slow = 0;
     G.flash = 0;
@@ -2362,8 +2479,10 @@
 
     el('hudScore').textContent = '0';
     el('hudBest').textContent = records.best.toLocaleString();
+    updateBombs();
     updateLives();
     refreshChip();
+    updateComboHud();
     el('hud').classList.remove('hidden');
     showScreen(null);
     startWave();
@@ -2375,12 +2494,14 @@
     G.state = 'paused';
     input.firing = false;
     drag = null;
+    updateBombs();
     showScreen('paused');
   }
 
   function resumeGame() {
     if (G.state !== 'paused') return;
     G.state = G.pausedFrom || 'play';
+    updateBombs();
     showScreen(null);
   }
 
@@ -2394,6 +2515,7 @@
     G.powerups.length = 0;
     el('hud').classList.add('hidden');
     el('bossBarWrap').classList.add('hidden');
+    updateBombs();
     hideAnnounce();
     saveRecords();
     refreshMenuStats();
@@ -2403,6 +2525,9 @@
   function gameOver() {
     G.state = 'over';
     G.boss = null;
+    breakCombo();
+    updateComboHud();
+    updateBombs();
     el('bossBarWrap').classList.add('hidden');
     hideAnnounce();
     saveRecords();
@@ -2454,6 +2579,7 @@
   el('btnQuit').addEventListener('click', quitToMenu);
   el('btnResume').addEventListener('click', resumeGame);
   el('pauseBtn').addEventListener('click', pauseGame);
+  el('bombBtn').addEventListener('click', (e) => { e.preventDefault(); useBomb(); });
   el('btnHow').addEventListener('click', () => showScreen('howto'));
   el('btnHowBack').addEventListener('click', () => showScreen('menu'));
 
@@ -2488,6 +2614,7 @@
   player.y = player.ty = playerMaxY();
   player.r = 12 * S;
   refreshMenuStats();
+  updateBombs();
   showScreen('menu');
   requestAnimationFrame(frame);
 })();
