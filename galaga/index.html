@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#05060f">
+  <title>Galaxy Raider</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="galaga.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <!-- ============================ HUD ============================ -->
+  <div id="hud" class="hidden">
+    <div class="hud-row">
+      <div class="hud-block">
+        <span class="hud-label">Score</span>
+        <span id="hudScore" class="hud-value">0</span>
+      </div>
+      <div class="hud-block center">
+        <span class="hud-label">Wave</span>
+        <span id="hudWave" class="hud-value">1</span>
+      </div>
+      <div class="hud-block right">
+        <span class="hud-label">Best</span>
+        <span id="hudBest" class="hud-value">0</span>
+      </div>
+    </div>
+    <div class="hud-row second">
+      <div id="hudLives" class="lives"></div>
+      <div id="hudPowerup" class="powerup-chip hidden"></div>
+      <button id="pauseBtn" class="icon-btn" aria-label="Pause">❚❚</button>
+    </div>
+    <div id="bossBarWrap" class="boss-bar-wrap hidden">
+      <span id="bossName" class="boss-name">BOSS</span>
+      <div class="boss-bar"><div id="bossBarFill" class="boss-bar-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- ======================== ANNOUNCEMENT ======================= -->
+  <div id="announce" class="announce hidden">
+    <div id="announceMain" class="announce-main"></div>
+    <div id="announceSub" class="announce-sub"></div>
+  </div>
+
+  <!-- =========================== MENU ============================ -->
+  <section id="menu" class="screen active">
+    <div class="panel">
+      <h1 class="logo">GALAXY<span>RAIDER</span></h1>
+      <p class="tagline">12 waves. 3 bosses. One ship.</p>
+      <button id="btnPlay" class="big-btn">Start Game</button>
+      <button id="btnHow" class="big-btn ghost">How to Play</button>
+      <div class="menu-stats">
+        <div><span class="k">Best Score</span><span id="menuBest" class="v">0</span></div>
+        <div><span class="k">Best Wave</span><span id="menuWave" class="v">1</span></div>
+      </div>
+      <div class="toggles">
+        <button id="btnAuto" class="toggle" data-on="true">Auto-fire: ON</button>
+        <button id="btnSound" class="toggle" data-on="true">Sound: ON</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== HOW TO PLAY ======================== -->
+  <section id="howto" class="screen">
+    <div class="panel scroll">
+      <h2>How to Play</h2>
+      <ul class="how-list">
+        <li><b>Move</b> — drag anywhere on the screen. Your ship follows your thumb, so you can keep it out from under your finger.</li>
+        <li><b>Shoot</b> — auto-fire is on by default. Turn it off to tap-to-fire, or use <b>Space</b> and arrow keys on a desktop.</li>
+        <li><b>Formations</b> — clear every raider in the wave to advance. Diving enemies are worth double.</li>
+        <li><b>Bosses</b> — waves 4, 8 and 12 end in a boss. Watch for the red charge glow: that means a beam is about to fire.</li>
+        <li><b>Power-ups</b> — shoot the gold commanders and boss escorts to drop them.</li>
+      </ul>
+      <div class="legend">
+        <div class="legend-item"><i class="pu pu-d"></i><span><b>Twin cannon</b> — two streams of fire</span></div>
+        <div class="legend-item"><i class="pu pu-r"></i><span><b>Rapid fire</b> — much faster shots</span></div>
+        <div class="legend-item"><i class="pu pu-s"></i><span><b>Shield</b> — absorbs one hit</span></div>
+        <div class="legend-item"><i class="pu pu-l"></i><span><b>Extra life</b> — rare, grab it</span></div>
+      </div>
+      <p class="muted">Survive all 12 waves and the campaign loops with tougher, faster raiders. Your run keeps going until your last ship is gone.</p>
+      <button id="btnHowBack" class="big-btn">Back</button>
+    </div>
+  </section>
+
+  <!-- ========================== PAUSED =========================== -->
+  <section id="paused" class="screen">
+    <div class="panel">
+      <h2>Paused</h2>
+      <button id="btnResume" class="big-btn">Resume</button>
+      <div class="toggles">
+        <button id="btnAuto2" class="toggle" data-on="true">Auto-fire: ON</button>
+        <button id="btnSound2" class="toggle" data-on="true">Sound: ON</button>
+      </div>
+      <button id="btnQuit" class="big-btn ghost">Quit to Menu</button>
+    </div>
+  </section>
+
+  <!-- ========================= GAME OVER ========================= -->
+  <section id="gameover" class="screen">
+    <div class="panel">
+      <h2 id="overTitle">Game Over</h2>
+      <div class="final">
+        <div class="final-score" id="finalScore">0</div>
+        <div class="final-sub" id="finalSub">Wave 1</div>
+      </div>
+      <div id="newBest" class="new-best hidden">NEW HIGH SCORE!</div>
+      <button id="btnAgain" class="big-btn">Play Again</button>
+      <button id="btnMenu" class="big-btn ghost">Main Menu</button>
+    </div>
+  </section>
+</div>
+
+<script src="galaga.js"></script>
+</body>
+</html>
