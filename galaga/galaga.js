@@ -234,6 +234,8 @@
     escortTimer: 6,
     waveClearTimer: 0,
     shake: 0,
+    upgrades: {},               // permanent picks, id -> level
+    shieldTimer: 0,
     combo: 0,                   // kills chained inside the combo window
     comboTimer: 0,
     lastMult: 1,
@@ -320,6 +322,9 @@
       case 'ArrowUp': case 'KeyW': input.up = true; break;
       case 'ArrowDown': case 'KeyS': input.down = true; break;
       case 'Space': input.firing = true; e.preventDefault(); break;
+      case 'Digit1': case 'Digit2': case 'Digit3':
+        if (G.state === 'upgrade') takeUpgrade(Number(e.code.slice(5)) - 1);
+        break;
       case 'KeyB': useBomb(); break;
       case 'KeyP': case 'Escape':
         if (G.state === 'play') pauseGame();
@@ -646,7 +651,8 @@
     const speed = 720 * S;
     const w = player.weapon;
     // The lance hits harder and passes through, so it fires slower.
-    player.cool = (player.rapid > 0 ? 0.085 : 0.185) * (w === 'pierce' ? 1.5 : 1);
+    player.cool = (player.rapid > 0 ? 0.085 : 0.185) * (w === 'pierce' ? 1.5 : 1)
+                  / (1 + 0.12 * upLevel('autoloader'));
     const y = player.y - 13 * S;
 
     if (w === 'twin') {
@@ -762,6 +768,15 @@
       p.t += dt;
       p.y += p.vy * dt;
       p.x += Math.sin(p.t * 2.6) * 22 * S * dt;
+      if (upLevel('tractor') && player.alive) {
+        const dx = player.x - p.x, dy = player.y - p.y;
+        const d = hypot(dx, dy);
+        if (d < 190 * S && d > 1) {
+          const pull = 260 * S * dt;
+          p.x += (dx / d) * pull;
+          p.y += (dy / d) * pull;
+        }
+      }
       if (p.y > H + 30) { G.powerups.splice(i, 1); continue; }
       if (player.alive && hypot(p.x - player.x, p.y - player.y) < p.r + player.r) {
         G.powerups.splice(i, 1);
@@ -780,7 +795,7 @@
       case 'shield': player.shield = true; break;
       case 'wingmen': launchWingmen(16); break;
       case 'warp': G.slow = 6; Sound.tone(760, 0.5, 'sine', 0.06, 180); break;
-      case 'bomb': player.bombs = Math.min(3, player.bombs + 1); updateBombs(); break;
+      case 'bomb': player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); break;
       case 'life': G.lives++; updateLives(); break;
     }
     floatText(player.x, player.y - 26 * S, def.label, def.color);
@@ -799,7 +814,8 @@
     const btn = el('bombBtn');
     el('bombCount').textContent = player.bombs;
     btn.classList.toggle('hidden', player.bombs <= 0 || G.state === 'menu' ||
-                                   G.state === 'over' || G.state === 'paused');
+                                   G.state === 'over' || G.state === 'paused' ||
+                                   G.state === 'upgrade');
   }
 
   /** Clears the screen: every shot gone, every raider hit at once. */
@@ -1238,6 +1254,22 @@
     if (settings.autoFire || input.firing) playerShoot();
 
     // Engine exhaust
+    const nano = upLevel('nanoshield');
+    if (nano > 0) {
+      if (player.shield) {
+        G.shieldTimer = nano === 1 ? 22 : 13;
+      } else {
+        G.shieldTimer -= dt;
+        if (G.shieldTimer <= 0) {
+          player.shield = true;
+          G.shieldTimer = nano === 1 ? 22 : 13;
+          floatText(player.x, player.y - 26 * S, 'BARRIER UP', '#5cd6ff');
+          Sound.powerup();
+          refreshChip();
+        }
+      }
+    }
+
     player.thrust += dt;
     if (player.thrust > 0.03) {
       player.thrust = 0;
@@ -1294,27 +1326,55 @@
     const diving = e.mode === 'path' && (e.onArrive === 'return' || e.onArrive === 'gone');
     bumpCombo();
     const mult = comboMult();
-    const pts = Math.round(e.def.pts * (diving ? 2 : 1) * (1 + 0.2 * (G.loop - 1)) * mult);
+    const pts = Math.round(e.def.pts * (diving ? 2 : 1) * (1 + 0.2 * (G.loop - 1)) * mult
+                           * (1 + 0.15 * upLevel('bounty')));
     addScore(pts);
     explode(e.x, e.y, e.def.color, diving ? 20 : 14, diving ? 1.2 : 1);
     if (diving || mult > 1) {
       floatText(e.x, e.y, String(pts) + (mult > 1 ? ' \u00d7' + mult : ''), mult > 1 ? '#8dff5a' : '#ffc94d');
     }
-    if (e.def.drop && Math.random() < e.def.drop) dropPowerup(e.x, e.y);
+    if (e.def.drop && Math.random() < e.def.drop * (1 + 0.6 * upLevel('salvage'))) {
+      dropPowerup(e.x, e.y);
+    }
     Sound.kill();
     G.enemies.splice(index, 1);
   }
+
+  /**
+   * Permanent, run-long upgrades. One is chosen from three after every wave,
+   * so a run becomes a build rather than a string of random drops. Each is
+   * capped, and stops being offered once it is maxed.
+   */
+  const UPGRADES = [
+    { id: 'autoloader', name: 'Autoloader',    cap: 4, blurb: 'Fire 12% faster.' },
+    { id: 'optics',     name: 'Targeting Optics', cap: 2, blurb: 'Boss core hits do +1 damage.' },
+    { id: 'nanoshield', name: 'Nanoshield',    cap: 2, blurb: 'Your barrier rebuilds itself over time.' },
+    { id: 'bombrack',   name: 'Bomb Rack',     cap: 2, blurb: 'Carry one more bomb, and take one now.' },
+    { id: 'chain',      name: 'Chain Extender', cap: 3, blurb: 'Combo window lasts 0.7s longer.' },
+    { id: 'overdrive',  name: 'Overdrive',     cap: 2, blurb: 'Combo multiplier caps 2 steps higher.' },
+    { id: 'salvage',    name: 'Salvage Crew',  cap: 3, blurb: 'Raiders drop power-ups far more often.' },
+    { id: 'escort',     name: 'Escort Contract', cap: 1, blurb: 'Start every wave with wingmen.' },
+    { id: 'spare',      name: 'Spare Ship',    cap: 3, blurb: 'One more ship in reserve, right now.' },
+    { id: 'bounty',     name: 'Bounty Contract', cap: 3, blurb: 'Kills are worth 15% more.' },
+    { id: 'tractor',    name: 'Tractor Rig',   cap: 1, blurb: 'Power-ups drift toward your ship.' }
+  ];
+
+  const ROMAN = ['', 'I', 'II', 'III', 'IV'];
+  const upLevel = (id) => G.upgrades[id] || 0;
 
   // Kills chain while the window keeps being refreshed; the multiplier climbs
   // a step every five kills and resets the moment you are hit or go quiet.
   const COMBO_WINDOW = 2.6;
   const COMBO_MAX = 8;
 
-  const comboMult = () => Math.min(COMBO_MAX, 1 + Math.floor(G.combo / 5));
+  const comboWindow = () => COMBO_WINDOW + 0.7 * upLevel('chain');
+  const comboCap = () => COMBO_MAX + 2 * upLevel('overdrive');
+  const comboMult = () => Math.min(comboCap(), 1 + Math.floor(G.combo / 5));
+  const bombCap = () => 3 + upLevel('bombrack');
 
   function bumpCombo() {
     G.combo++;
-    G.comboTimer = COMBO_WINDOW;
+    G.comboTimer = comboWindow();
     const m = comboMult();
     if (m > G.lastMult) {
       G.lastMult = m;
@@ -1338,7 +1398,7 @@
     wrap.classList.toggle('hidden', !on);
     if (!on) return;
     el('hudMult').textContent = '\u00d7' + comboMult();
-    el('comboFill').style.width = (100 * clamp(G.comboTimer / COMBO_WINDOW, 0, 1)) + '%';
+    el('comboFill').style.width = (100 * clamp(G.comboTimer / comboWindow(), 0, 1)) + '%';
   }
 
   const BOSS_HIT_ID = -1;      // stands in for the boss in a pierce hit list
@@ -1371,7 +1431,7 @@
         const boss = G.boss;
         if (b.pierce) b.hit.push(BOSS_HIT_ID); else spent = true;
         const crit = bossCoreHit(boss, b.x, b.y, b.r);
-        damageBoss(crit ? 2 : 1);
+        damageBoss(crit ? 2 + upLevel('optics') : 1);
         if (crit) {
           boss.coreFlash = 0.12;
           explode(b.x, b.y, '#ffffff', 10, 0.9);
@@ -1519,6 +1579,7 @@
     const def = waveDef();
     hideAnnounce();
     G.waveClearTimer = 0.9;
+    if (upLevel('escort') && player.alive && player.wingmen <= 0) launchWingmen(10);
     if (def.boss) spawnBoss(def.boss);
     else buildWave(def);
     G.state = 'play';
@@ -1531,6 +1592,59 @@
     Sound.levelUp();
     G.waveClearTimer = 2.0;
     G.state = 'clear';
+  }
+
+  /** Three eligible upgrades, offered between waves. */
+  function offerUpgrade() {
+    // A run that just lost its last ship goes to the game-over screen instead.
+    if (!player.alive && G.lives <= 0) { advanceWave(); return; }
+    const pool = UPGRADES.filter((u) => upLevel(u.id) < u.cap);
+    if (!pool.length) { advanceWave(); return; }
+
+    // Shuffle a copy and take up to three.
+    const picks = pool.slice();
+    for (let i = picks.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = picks[i]; picks[i] = picks[j]; picks[j] = t;
+    }
+    G.offer = picks.slice(0, 3);
+
+    el('upgradeCards').innerHTML = G.offer.map((u, i) => {
+      const next = upLevel(u.id) + 1;
+      const tier = u.cap > 1 ? '<span class="up-tier">' + ROMAN[next] + '</span>' : '';
+      const owned = upLevel(u.id) > 0
+        ? '<span class="up-owned">have ' + ROMAN[upLevel(u.id)] + '</span>' : '';
+      return '<button class="up-card" data-i="' + i + '">' +
+             '<span class="up-key">' + (i + 1) + '</span>' +
+             '<span class="up-name">' + u.name + tier + '</span>' +
+             '<span class="up-blurb">' + u.blurb + '</span>' + owned +
+             '</button>';
+    }).join('');
+
+    for (const btn of el('upgradeCards').querySelectorAll('.up-card')) {
+      btn.addEventListener('click', () => takeUpgrade(Number(btn.dataset.i)));
+    }
+    hideAnnounce();
+    G.state = 'upgrade';
+    updateBombs();
+    showScreen('upgrade');
+  }
+
+  function takeUpgrade(index) {
+    if (G.state !== 'upgrade' || !G.offer || !G.offer[index]) return;
+    const u = G.offer[index];
+    G.upgrades[u.id] = upLevel(u.id) + 1;
+
+    // A couple of them pay out the moment you take them.
+    if (u.id === 'spare') { G.lives++; updateLives(); }
+    if (u.id === 'bombrack') { player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); }
+    if (u.id === 'nanoshield') G.shieldTimer = upLevel('nanoshield') === 1 ? 22 : 13;
+
+    G.offer = null;
+    Sound.levelUp();
+    showScreen(null);
+    updateBombs();
+    advanceWave();
   }
 
   function advanceWave() {
@@ -2369,7 +2483,8 @@
     updateStars(dt, G.state === 'menu' ? 1.8 : (G.slow > 0 ? 0.4 : 1));
     updateEffects(dt);
 
-    if (G.state === 'menu' || G.state === 'over' || G.state === 'paused') return;
+    if (G.state === 'menu' || G.state === 'over' || G.state === 'paused' ||
+        G.state === 'upgrade') return;
 
     if (G.comboTimer > 0) {
       G.comboTimer -= dt;
@@ -2390,7 +2505,7 @@
     if (G.state === 'clear') {
       updateEnemies(edt);
       G.waveClearTimer -= dt;
-      if (G.waveClearTimer <= 0) { hideAnnounce(); advanceWave(); }
+      if (G.waveClearTimer <= 0) { hideAnnounce(); offerUpgrade(); }
       return;
     }
 
@@ -2427,7 +2542,7 @@
   // 15. Screens and run control
   // =========================================================
 
-  const SCREENS = ['menu', 'howto', 'paused', 'gameover'];
+  const SCREENS = ['menu', 'howto', 'paused', 'gameover', 'upgrade'];
 
   function showScreen(id) {
     for (const s of SCREENS) el(s).classList.toggle('active', s === id);
@@ -2459,6 +2574,9 @@
     G.boss = null;
     G.shake = 0;
     G.waveClearTimer = 0.9;
+    G.upgrades = {};
+    G.offer = null;
+    G.shieldTimer = 0;
     breakCombo();
 
     player.alive = true;
@@ -2507,6 +2625,7 @@
 
   function quitToMenu() {
     G.state = 'menu';
+    G.offer = null;
     G.boss = null;
     G.enemies.length = 0;
     G.spawnQueue.length = 0;

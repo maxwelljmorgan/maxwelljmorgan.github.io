@@ -16,8 +16,29 @@ dependencies — open `index.html` and play.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
+- **Refit** — after every wave you pick one of three permanent upgrades.
+  They stack, they last the whole run, and each one stops being offered once
+  it is maxed, so no two runs build the same way. Tap a card or press 1-3.
 - **Power-ups** — red command craft and armoured gun platforms drop them, as
   do boss escorts. Losing a ship costs you whatever you were carrying.
+
+## Refit upgrades
+
+Offered three at a time between waves, drawn from whatever is not yet maxed.
+
+| Upgrade | Effect | Max |
+| --- | --- | --- |
+| Autoloader | Fire 12% faster | IV |
+| Targeting Optics | Boss core hits do +1 damage | II |
+| Nanoshield | Your barrier rebuilds itself over time | II |
+| Bomb Rack | Carry one more bomb, and take one now | II |
+| Chain Extender | Combo window lasts 0.7s longer | III |
+| Overdrive | Combo multiplier caps 2 steps higher | II |
+| Salvage Crew | Raiders drop power-ups far more often | III |
+| Escort Contract | Start every wave with wingmen | I |
+| Spare Ship | One more ship in reserve, right now | III |
+| Bounty Contract | Kills are worth 15% more | III |
+| Tractor Rig | Power-ups drift toward your ship | I |
 
 ## Power-ups
 

@@ -335,6 +335,65 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
 }
 .toggle[data-on="true"] { color: var(--accent); border-color: rgba(77, 166, 255, .55); background: rgba(77, 166, 255, .12); }
 
+/* --------------------- Between-wave refit --------------------- */
+.upgrade-panel { max-width: 420px; }
+.upgrade-sub { margin: -8px 0 16px; }
+
+.up-cards { display: grid; gap: 10px; }
+
+.up-card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px 14px 46px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.up-card:active { transform: scale(.985); }
+.up-card:hover { border-color: rgba(77, 166, 255, .6); background: rgba(77, 166, 255, .1); }
+.up-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.up-key {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid rgba(77, 166, 255, .5);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.up-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--accent);
+}
+.up-tier {
+  margin-left: 6px;
+  font-size: 11px;
+  letter-spacing: .12em;
+  color: var(--gold);
+}
+.up-blurb { font-size: 12.5px; line-height: 1.45; color: #cddaf0; }
+.up-owned {
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 /* ------------------------- How to play ------------------------ */
 .how-list { margin: 0 0 16px; padding-left: 18px; }
 .how-list li { margin-bottom: 11px; font-size: 13.5px; line-height: 1.5; color: #cdd4f0; }

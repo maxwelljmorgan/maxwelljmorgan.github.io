@@ -90,6 +90,7 @@
         <li><b>Combo</b> — kills chain while the bar under your score is draining. Every five kills adds a multiplier, up to &times;8. Going quiet drops it, and so does getting hit.</li>
         <li><b>Bosses</b> — waves 4, 8 and 12 end in a boss. Watch for the red charge glow: that means a beam is about to fire.</li>
         <li><b>Weak points</b> — every boss has a glowing core. Hits there do double damage, and it beats faster as its armour fails.</li>
+        <li><b>Refit</b> — after every wave you pick one of three permanent upgrades. They stack and last the whole run, so each run builds differently. Tap a card, or press <b>1</b>, <b>2</b> or <b>3</b>.</li>
         <li><b>Power-ups</b> — shoot the red command craft and the armoured gun platforms to drop them. Losing a ship costs you whatever you were carrying.</li>
       </ul>
       <h3 class="legend-head">Weapons <span>one at a time — a new one replaces the last</span></h3>
@@ -118,6 +119,15 @@
       </div>
       <p class="muted">Survive all 12 waves and the campaign loops with tougher, faster raiders. Your run keeps going until your last ship is gone.</p>
       <button id="btnHowBack" class="big-btn">Back</button>
+    </div>
+  </section>
+
+  <!-- ======================= UPGRADE CHOICE ====================== -->
+  <section id="upgrade" class="screen">
+    <div class="panel upgrade-panel">
+      <h2>Refit</h2>
+      <p class="muted upgrade-sub">Pick one. It lasts the rest of the run.</p>
+      <div id="upgradeCards" class="up-cards"></div>
     </div>
   </section>
 
