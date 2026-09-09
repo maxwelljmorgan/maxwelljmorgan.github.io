@@ -19,6 +19,82 @@
   let W = 0, H = 0, S = 1, DPR = 1;
 
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+  // =========================================================
+  //  Shading kit
+  //  Everything is drawn as if lit by one key light from the
+  //  upper left, so hulls read as solid volumes rather than
+  //  flat silhouettes.
+  // =========================================================
+
+  const LIGHT = { x: -0.5, y: -0.86 };   // unit-ish vector toward the key light
+
+  /** Lighten (amt > 0) or darken (amt < 0) a #rrggbb colour. */
+  function tint(hex, amt, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    if (amt > 0) { r += (255 - r) * amt; g += (255 - g) * amt; b += (255 - b) * amt; }
+    else { r *= 1 + amt; g *= 1 + amt; b *= 1 + amt; }
+    r = Math.round(clamp(r, 0, 255));
+    g = Math.round(clamp(g, 0, 255));
+    b = Math.round(clamp(b, 0, 255));
+    return alpha == null
+      ? 'rgb(' + r + ',' + g + ',' + b + ')'
+      : 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  }
+
+  /** A lit-to-shadow ramp across a box, aligned to the key light. */
+  function bodyGradient(c, base, half, hi, lo) {
+    const g = c.createLinearGradient(LIGHT.x * half, LIGHT.y * half,
+                                     -LIGHT.x * half, -LIGHT.y * half);
+    g.addColorStop(0, tint(base, hi == null ? 0.45 : hi));
+    g.addColorStop(0.45, base);
+    g.addColorStop(1, tint(base, lo == null ? -0.55 : lo));
+    return g;
+  }
+
+  /** A round highlight offset toward the light, for domes and spheres. */
+  function domeGradient(c, base, r) {
+    const g = c.createRadialGradient(LIGHT.x * r * 0.45, LIGHT.y * r * 0.45, r * 0.06,
+                                     0, 0, r);
+    g.addColorStop(0, tint(base, 0.7));
+    g.addColorStop(0.35, tint(base, 0.2));
+    g.addColorStop(1, tint(base, -0.55));
+    return g;
+  }
+
+  /**
+   * Sprite cache. Each sprite is rendered once into an offscreen canvas at
+   * SS times its on-screen size, then blitted. Drawing the expensive shading
+   * once buys detail that would be far too slow to redraw every frame, and
+   * the supersample keeps the edges clean when it is scaled down.
+   */
+  const Sprites = {
+    store: {},
+    SS: 3,
+
+    get(key, w, h, draw) {
+      let sp = this.store[key];
+      if (sp) return sp;
+      const ss = this.SS;
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.ceil(w * ss));
+      cv.height = Math.max(1, Math.ceil(h * ss));
+      const c = cv.getContext('2d');
+      c.scale(ss, ss);
+      c.translate(w / 2, h / 2);
+      c.lineJoin = 'round';
+      c.lineCap = 'round';
+      draw(c);
+      sp = { cv: cv, w: w, h: h };
+      this.store[key] = sp;
+      return sp;
+    },
+
+    blit(ctx, sp) { ctx.drawImage(sp.cv, -sp.w / 2, -sp.h / 2, sp.w, sp.h); },
+
+    clear() { this.store = {}; }
+  };
   const rand = (a, b) => a + Math.random() * (b - a);
   const randInt = (a, b) => Math.floor(rand(a, b + 1));
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -34,7 +110,9 @@
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
     // Short screens (landscape phones) scale down so the field still fits.
+    const prevS = S;
     S = clamp(Math.min(W / DESIGN_W, H / DESIGN_H), 0.72, 1.5);
+    if (S !== prevS) Sprites.clear();
 
     player.y = clamp(player.y, playerMinY(), playerMaxY());
     player.ty = player.y;
@@ -1785,113 +1863,158 @@
   // =========================================================
 
   /**
-   * The player ship: a delta-wing interceptor with vertical wingtip fins,
-   * twin engine flares and a bubble canopy — Arwing-shaped.
+   * The player ship, painted once per weapon tint: a machined hull with a
+   * lit spine, shadowed flanks, chromed cannons and a glass canopy.
    */
+  function paintShip(c, tintColor, scale) {
+    const u = S * scale;
+    c.fillStyle = 'rgba(0,0,0,.3)';
+    c.beginPath();
+    c.ellipse(2 * u, 4 * u, 15 * u, 12 * u, 0, 0, Math.PI * 2);
+    c.fill();
+
+    // Wings
+    const wg = c.createLinearGradient(-14 * u, -2 * u, 8 * u, 12 * u);
+    wg.addColorStop(0, '#8fd0ff');
+    wg.addColorStop(0.45, '#4da6ff');
+    wg.addColorStop(1, '#1a4f8f');
+    c.fillStyle = wg;
+    c.beginPath();
+    c.moveTo(-3.5 * u, -2 * u); c.lineTo(-15 * u, 8 * u);
+    c.lineTo(-15 * u, 12 * u);  c.lineTo(-3.5 * u, 9 * u);
+    c.closePath();
+    c.moveTo(3.5 * u, -2 * u);  c.lineTo(15 * u, 8 * u);
+    c.lineTo(15 * u, 12 * u);   c.lineTo(3.5 * u, 9 * u);
+    c.closePath();
+    c.fill();
+
+    // Lit leading edges
+    c.strokeStyle = 'rgba(190,230,255,.85)';
+    c.lineWidth = 1.2 * u;
+    c.beginPath();
+    c.moveTo(-3.5 * u, -2 * u); c.lineTo(-15 * u, 8 * u);
+    c.moveTo(3.5 * u, -2 * u);  c.lineTo(15 * u, 8 * u);
+    c.stroke();
+
+    // Vertical fins
+    c.fillStyle = '#2f7fd4';
+    c.beginPath();
+    c.moveTo(-15 * u, 8 * u); c.lineTo(-17 * u, 0); c.lineTo(-13.5 * u, 6 * u);
+    c.closePath();
+    c.moveTo(15 * u, 8 * u);  c.lineTo(17 * u, 0);  c.lineTo(13.5 * u, 6 * u);
+    c.closePath();
+    c.fill();
+
+    // Chromed wing cannons
+    const bg = c.createLinearGradient(-11 * u, 0, -8.6 * u, 0);
+    bg.addColorStop(0, '#7d8ea6'); bg.addColorStop(0.4, '#f2f7ff'); bg.addColorStop(1, '#5d6c88');
+    c.fillStyle = bg;
+    c.fillRect(-11 * u, 2 * u, 2.4 * u, 8 * u);
+    c.fillRect(8.6 * u, 2 * u, 2.4 * u, 8 * u);
+
+    // Fuselage
+    const hg = c.createLinearGradient(-6 * u, -10 * u, 7 * u, 10 * u);
+    hg.addColorStop(0, '#ffffff');
+    hg.addColorStop(0.42, '#dbe6f5');
+    hg.addColorStop(1, '#69809e');
+    c.fillStyle = hg;
+    c.beginPath();
+    c.moveTo(0, -17 * u);   c.lineTo(4.6 * u, -4 * u);
+    c.lineTo(5.4 * u, 10 * u); c.lineTo(-5.4 * u, 10 * u);
+    c.lineTo(-4.6 * u, -4 * u);
+    c.closePath();
+    c.fill();
+
+    // Spine highlight and shadowed right flank
+    c.fillStyle = 'rgba(255,255,255,.75)';
+    c.beginPath();
+    c.moveTo(0, -16 * u); c.lineTo(-1.7 * u, -4 * u);
+    c.lineTo(-1.7 * u, 9 * u); c.lineTo(0, 9 * u);
+    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(20,40,70,.25)';
+    c.beginPath();
+    c.moveTo(1.4 * u, -13 * u); c.lineTo(4.6 * u, -4 * u);
+    c.lineTo(5.4 * u, 10 * u);  c.lineTo(1.4 * u, 10 * u);
+    c.closePath(); c.fill();
+
+    // Hull stripes, tinted by the equipped weapon
+    c.fillStyle = tintColor;
+    c.fillRect(-4.9 * u, 3 * u, 3 * u, 5 * u);
+    c.fillRect(1.9 * u, 3 * u, 3 * u, 5 * u);
+
+    // Glass canopy with a specular streak
+    const cg = c.createLinearGradient(-3 * u, -10 * u, 3 * u, 1 * u);
+    cg.addColorStop(0, '#cfeaff');
+    cg.addColorStop(0.35, '#2b7fd4');
+    cg.addColorStop(1, '#08203c');
+    c.fillStyle = cg;
+    c.beginPath(); c.ellipse(0, -5 * u, 2.9 * u, 5.6 * u, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.8)';
+    c.beginPath(); c.ellipse(-0.9 * u, -7 * u, 0.85 * u, 2.2 * u, 0, 0, Math.PI * 2); c.fill();
+
+    // Engine nozzles
+    for (const sx of [-4.5, 4.5]) {
+      const ng = c.createRadialGradient(sx * u, 10 * u, 0, sx * u, 10 * u, 2.6 * u);
+      ng.addColorStop(0, '#0a1526'); ng.addColorStop(1, '#4a5f7d');
+      c.fillStyle = ng;
+      c.beginPath(); c.ellipse(sx * u, 10 * u, 2.6 * u, 1.8 * u, 0, 0, Math.PI * 2); c.fill();
+    }
+  }
+
+  const WEAPON_TINT = { twin: '#8dff5a', spread: '#4da6ff', pierce: '#cfe8ff', single: '#ff6b35' };
+
   function drawPlayer() {
     ctx.save();
     ctx.translate(player.x, player.y);
     const blink = player.invuln > 0 && Math.floor(G.time * 16) % 2 === 0;
 
     if (!blink) {
-      // Twin engine flares
+      // Twin engine flares, drawn live so they flicker
       const f = (5 + Math.sin(G.time * 40) * 2) * S;
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = player.rapid > 0 ? 'rgba(255,201,77,.8)' : 'rgba(92,200,255,.8)';
       for (const sx of [-4.5, 4.5]) {
+        const fg = ctx.createRadialGradient(sx * S, 12 * S, 0, sx * S, 12 * S, 4 * S + f);
+        const hot = player.rapid > 0 ? '255,201,77' : '120,215,255';
+        fg.addColorStop(0, 'rgba(255,255,255,.95)');
+        fg.addColorStop(0.35, 'rgba(' + hot + ',.8)');
+        fg.addColorStop(1, 'rgba(' + hot + ',0)');
+        ctx.fillStyle = fg;
         ctx.beginPath();
-        ctx.ellipse(sx * S, 11 * S + f * 0.5, 2.6 * S, 3.4 * S + f, 0, 0, Math.PI * 2);
+        ctx.ellipse(sx * S, 12 * S + f * 0.4, 3.2 * S, 3.4 * S + f, 0, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalCompositeOperation = 'source-over';
 
-      // Wings, swept back and down from the fuselage
-      ctx.fillStyle = '#4da6ff';
-      ctx.beginPath();
-      ctx.moveTo(-3.5 * S, -2 * S);
-      ctx.lineTo(-15 * S, 8 * S);
-      ctx.lineTo(-15 * S, 12 * S);
-      ctx.lineTo(-3.5 * S, 9 * S);
-      ctx.closePath();
-      ctx.moveTo(3.5 * S, -2 * S);
-      ctx.lineTo(15 * S, 8 * S);
-      ctx.lineTo(15 * S, 12 * S);
-      ctx.lineTo(3.5 * S, 9 * S);
-      ctx.closePath();
-      ctx.fill();
-
-      // Vertical wingtip fins
-      ctx.fillStyle = '#2f7fd4';
-      ctx.beginPath();
-      ctx.moveTo(-15 * S, 8 * S);
-      ctx.lineTo(-17 * S, 0 * S);
-      ctx.lineTo(-13.5 * S, 6 * S);
-      ctx.closePath();
-      ctx.moveTo(15 * S, 8 * S);
-      ctx.lineTo(17 * S, 0 * S);
-      ctx.lineTo(13.5 * S, 6 * S);
-      ctx.closePath();
-      ctx.fill();
-
-      // Wing-root laser cannons
-      ctx.fillStyle = '#cdd8e8';
-      ctx.fillRect(-11 * S, 2 * S, 2.4 * S, 8 * S);
-      ctx.fillRect(8.6 * S, 2 * S, 2.4 * S, 8 * S);
-
-      // Fuselage
-      ctx.fillStyle = '#eaf1fb';
-      ctx.beginPath();
-      ctx.moveTo(0, -17 * S);
-      ctx.lineTo(4.6 * S, -4 * S);
-      ctx.lineTo(5.4 * S, 10 * S);
-      ctx.lineTo(-5.4 * S, 10 * S);
-      ctx.lineTo(-4.6 * S, -4 * S);
-      ctx.closePath();
-      ctx.fill();
-
-      // Hull stripes — tinted by the weapon you are carrying
-      const WEAPON_TINT = { twin: '#8dff5a', spread: '#4da6ff', pierce: '#cfe8ff' };
-      ctx.fillStyle = WEAPON_TINT[player.weapon] || '#ff6b35';
-      ctx.fillRect(-4.9 * S, 3 * S, 3 * S, 5 * S);
-      ctx.fillRect(1.9 * S, 3 * S, 3 * S, 5 * S);
-
-      // Canopy
-      ctx.fillStyle = '#1d5c9e';
-      ctx.beginPath();
-      ctx.ellipse(0, -5 * S, 2.9 * S, 5.6 * S, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(190,225,255,.75)';
-      ctx.beginPath();
-      ctx.ellipse(-0.8 * S, -6.5 * S, 1.1 * S, 2.6 * S, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const tintColor = WEAPON_TINT[player.weapon] || WEAPON_TINT.single;
+      Sprites.blit(ctx, Sprites.get('ship:' + player.weapon, 46 * S, 46 * S,
+                                    (c) => paintShip(c, tintColor, 1)));
     }
 
-    // Barrier: a faceted energy shell rather than a plain ring
     if (player.shield) {
       ctx.globalCompositeOperation = 'lighter';
-      const a = 0.45 + 0.2 * Math.sin(G.time * 7);
-      ctx.strokeStyle = 'rgba(92,214,255,' + a + ')';
-      ctx.lineWidth = 1.8 * S;
+      const a = 0.4 + 0.18 * Math.sin(G.time * 7);
+      const sg = ctx.createRadialGradient(0, 0, 12 * S, 0, 0, 22 * S);
+      sg.addColorStop(0, 'rgba(92,214,255,0)');
+      sg.addColorStop(0.75, 'rgba(92,214,255,' + (a * 0.35) + ')');
+      sg.addColorStop(1, 'rgba(160,235,255,0)');
+      ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.arc(0, 0, 22 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(140,230,255,' + (a + 0.25) + ')';
+      ctx.lineWidth = 1.6 * S;
       ctx.beginPath();
       for (let i = 0; i <= 8; i++) {
         const th = (i / 8) * Math.PI * 2 + G.time * 0.6;
-        const rr = 21 * S;
-        ctx.lineTo(Math.cos(th) * rr, Math.sin(th) * rr * 0.92);
+        ctx.lineTo(Math.cos(th) * 21 * S, Math.sin(th) * 21 * S * 0.92);
       }
       ctx.closePath();
       ctx.stroke();
-      ctx.fillStyle = 'rgba(92,214,255,.07)';
-      ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
   }
 
-  /** Wingmen fly the same airframe in their own squadron colours. */
-  const WINGMAN_COLORS = [
-    { hull: '#dbe6f5', wing: '#3f7fd6', trim: '#ff6b35' },
-    { hull: '#dbe6f5', wing: '#4fb87a', trim: '#ffc94d' }
-  ];
+  /** Wingmen fly the same airframe, smaller and in squadron colours. */
+  const WINGMAN_TINT = ['#4fb87a', '#ffc94d'];
 
   function drawDrones() {
     if (player.wingmen <= 0 || !player.alive) return;
@@ -1899,441 +2022,486 @@
     if (player.wingmen < 2 && Math.floor(G.time * 10) % 2 === 0) return;
 
     player.drones.forEach((d, i) => {
-      const c = WINGMAN_COLORS[i % WINGMAN_COLORS.length];
+      const col = WINGMAN_TINT[i % WINGMAN_TINT.length];
       ctx.save();
       ctx.translate(d.x, d.y);
-      ctx.scale(0.62, 0.62);
 
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = 'rgba(92,200,255,.7)';
+      const f = (3 + Math.sin(G.time * 34) * 1.5) * S;
+      const fg = ctx.createRadialGradient(0, 8 * S, 0, 0, 8 * S, 3 * S + f);
+      fg.addColorStop(0, 'rgba(255,255,255,.85)');
+      fg.addColorStop(0.4, 'rgba(120,215,255,.65)');
+      fg.addColorStop(1, 'rgba(120,215,255,0)');
+      ctx.fillStyle = fg;
       ctx.beginPath();
-      ctx.ellipse(0, 12 * S, 3 * S, (5 + Math.sin(G.time * 34) * 2) * S, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 8 * S + f * 0.4, 2.2 * S, 2.4 * S + f, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
 
-      ctx.fillStyle = c.wing;
-      ctx.beginPath();
-      ctx.moveTo(-3.5 * S, -2 * S);
-      ctx.lineTo(-15 * S, 9 * S);
-      ctx.lineTo(-3.5 * S, 9 * S);
-      ctx.closePath();
-      ctx.moveTo(3.5 * S, -2 * S);
-      ctx.lineTo(15 * S, 9 * S);
-      ctx.lineTo(3.5 * S, 9 * S);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = c.hull;
-      ctx.beginPath();
-      ctx.moveTo(0, -16 * S);
-      ctx.lineTo(4.6 * S, -3 * S);
-      ctx.lineTo(5 * S, 10 * S);
-      ctx.lineTo(-5 * S, 10 * S);
-      ctx.lineTo(-4.6 * S, -3 * S);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = c.trim;
-      ctx.fillRect(-4.4 * S, 3 * S, 2.6 * S, 5 * S);
-      ctx.fillRect(1.8 * S, 3 * S, 2.6 * S, 5 * S);
-      ctx.fillStyle = '#1d5c9e';
-      ctx.beginPath();
-      ctx.ellipse(0, -5 * S, 2.6 * S, 5 * S, 0, 0, Math.PI * 2);
-      ctx.fill();
+      Sprites.blit(ctx, Sprites.get('drone:' + i, 30 * S, 30 * S,
+                                    (c) => paintShip(c, col, 0.62)));
       ctx.restore();
     });
   }
 
-  /**
-   * Raiders are angular Venom-style craft: a hard-edged hull, swept forward
-   * wings and a lit engine core, coloured by rank.
-   */
-  function drawEnemy(e) {
-    const d = e.def;
-    const r = d.r * S;
-    const flap = Math.sin(e.t * 6) * 0.12;
-    const hull = e.flash > 0 ? '#ffffff' : d.color;
-    const wing = e.flash > 0 ? '#ffffff' : d.wing;
+  const FLAP_FRAMES = 4;
 
+  function paintRaider(c, d, type, flap) {
+    const r = d.r * S;
+    const hull = bodyGradient(c, d.color, r);
+    const wing = bodyGradient(c, d.wing, r * 1.4, 0.35, -0.6);
+    const edge = tint(d.color, 0.75);
+
+    // Contact shadow underneath, so the craft sits in the scene.
+    c.fillStyle = 'rgba(0,0,0,.34)';
+    c.beginPath();
+    c.ellipse(r * 0.16, r * 0.3, r * 0.95, r * 0.72, 0, 0, Math.PI * 2);
+    c.fill();
+
+    if (type === 'turret') {
+      c.fillStyle = tint(d.dark, -0.35);
+      c.beginPath();
+      c.moveTo(-r * 1.15, -r * 0.35); c.lineTo(-r * 0.55, -r * 0.95);
+      c.lineTo(r * 0.55, -r * 0.95);  c.lineTo(r * 1.15, -r * 0.35);
+      c.lineTo(r * 0.8, r * 0.7);     c.lineTo(-r * 0.8, r * 0.7);
+      c.closePath(); c.fill();
+
+      c.fillStyle = hull;
+      c.beginPath();
+      c.moveTo(-r * 0.85, -r * 0.3); c.lineTo(-r * 0.42, -r * 0.72);
+      c.lineTo(r * 0.42, -r * 0.72); c.lineTo(r * 0.85, -r * 0.3);
+      c.lineTo(r * 0.6, r * 0.5);    c.lineTo(-r * 0.6, r * 0.5);
+      c.closePath(); c.fill();
+
+      // Lit top-left facets
+      c.strokeStyle = edge;
+      c.lineWidth = 1.3 * S;
+      c.beginPath();
+      c.moveTo(-r * 0.85, -r * 0.3); c.lineTo(-r * 0.42, -r * 0.72); c.lineTo(r * 0.42, -r * 0.72);
+      c.stroke();
+
+      c.fillStyle = tint(d.dark, -0.5);
+      c.fillRect(-r * 0.22, r * 0.4, r * 0.44, r * 0.85);
+      c.fillStyle = 'rgba(255,255,255,.16)';
+      c.fillRect(-r * 0.22, r * 0.4, r * 0.14, r * 0.85);
+
+      const eye = c.createRadialGradient(0, -r * 0.1, 0, 0, -r * 0.1, r * 0.34);
+      eye.addColorStop(0, '#ffffff');
+      eye.addColorStop(0.4, d.glow);
+      eye.addColorStop(1, tint(d.glow, -0.6, 0));
+      c.fillStyle = eye;
+      c.beginPath(); c.arc(0, -r * 0.1, r * 0.34, 0, Math.PI * 2); c.fill();
+
+    } else if (type === 'commander') {
+      c.fillStyle = wing;
+      c.beginPath();
+      c.moveTo(-r * 0.45, r * 0.30); c.lineTo(-r * 1.62, -r * (0.28 + flap));
+      c.lineTo(-r * 1.34, -r * 0.68); c.lineTo(-r * 0.42, -r * 0.55);
+      c.closePath();
+      c.moveTo(r * 0.45, r * 0.30);  c.lineTo(r * 1.62, -r * (0.28 - flap));
+      c.lineTo(r * 1.34, -r * 0.68); c.lineTo(r * 0.42, -r * 0.55);
+      c.closePath(); c.fill();
+
+      c.strokeStyle = tint(d.wing, 0.6);
+      c.lineWidth = 1.2 * S;
+      c.beginPath();
+      c.moveTo(-r * 0.45, r * 0.30); c.lineTo(-r * 1.62, -r * (0.28 + flap));
+      c.moveTo(r * 0.45, r * 0.30);  c.lineTo(r * 1.62, -r * (0.28 - flap));
+      c.stroke();
+
+      c.fillStyle = tint(d.dark, -0.4);
+      c.fillRect(-r * 1.5, -r * 0.5, r * 0.22, r * 0.6);
+      c.fillRect(r * 1.28, -r * 0.5, r * 0.22, r * 0.6);
+
+      c.fillStyle = hull;
+      c.beginPath();
+      c.moveTo(0, r * 1.05);         c.lineTo(-r * 0.7, r * 0.2);
+      c.lineTo(-r * 0.45, -r * 0.85); c.lineTo(r * 0.45, -r * 0.85);
+      c.lineTo(r * 0.7, r * 0.2);
+      c.closePath(); c.fill();
+
+      // Spine highlight and shadowed flank
+      c.fillStyle = tint(d.color, 0.5, 0.55);
+      c.beginPath();
+      c.moveTo(0, r * 1.0); c.lineTo(-r * 0.2, r * 0.1); c.lineTo(-r * 0.16, -r * 0.8);
+      c.lineTo(0, -r * 0.84); c.closePath(); c.fill();
+      c.fillStyle = 'rgba(0,0,0,.28)';
+      c.beginPath();
+      c.moveTo(r * 0.16, r * 0.9); c.lineTo(r * 0.7, r * 0.18);
+      c.lineTo(r * 0.45, -r * 0.84); c.lineTo(r * 0.16, -r * 0.8);
+      c.closePath(); c.fill();
+
+      c.fillStyle = tint(d.dark, -0.3);
+      c.fillRect(-r * 0.5, -r * 0.15, r, r * 0.16);
+
+      const cn = c.createLinearGradient(-r * 0.3, r * 0.05, r * 0.3, r * 0.7);
+      cn.addColorStop(0, '#9fd8ff'); cn.addColorStop(0.4, '#20304a'); cn.addColorStop(1, '#0b1220');
+      c.fillStyle = cn;
+      c.beginPath(); c.ellipse(0, r * 0.35, r * 0.3, r * 0.42, 0, 0, Math.PI * 2); c.fill();
+
+      for (const sx of [-0.3, 0.3]) {
+        const gl = c.createRadialGradient(sx * r, -r * 0.86, 0, sx * r, -r * 0.86, r * 0.26);
+        gl.addColorStop(0, tint(d.glow, 0.5, 0.9));
+        gl.addColorStop(0.4, tint(d.glow, 0, 0.5));
+        gl.addColorStop(1, tint(d.glow, 0, 0));
+        c.fillStyle = gl;
+        c.beginPath(); c.arc(sx * r, -r * 0.86, r * 0.26, 0, Math.PI * 2); c.fill();
+      }
+
+    } else {
+      const sweep = type === 'wasp' ? 1.55 : 1.25;
+      c.fillStyle = wing;
+      c.beginPath();
+      c.moveTo(-r * 0.38, r * 0.25); c.lineTo(-r * sweep, -r * (0.22 + flap));
+      c.lineTo(-r * sweep * 0.84, -r * 0.6); c.lineTo(-r * 0.36, -r * 0.5);
+      c.closePath();
+      c.moveTo(r * 0.38, r * 0.25);  c.lineTo(r * sweep, -r * (0.22 - flap));
+      c.lineTo(r * sweep * 0.84, -r * 0.6); c.lineTo(r * 0.36, -r * 0.5);
+      c.closePath(); c.fill();
+
+      c.strokeStyle = tint(d.wing, 0.55);
+      c.lineWidth = 1.1 * S;
+      c.beginPath();
+      c.moveTo(-r * 0.38, r * 0.25); c.lineTo(-r * sweep, -r * (0.22 + flap));
+      c.moveTo(r * 0.38, r * 0.25);  c.lineTo(r * sweep, -r * (0.22 - flap));
+      c.stroke();
+
+      c.fillStyle = hull;
+      c.beginPath();
+      c.moveTo(0, r * 1.0);          c.lineTo(-r * 0.55, r * 0.15);
+      c.lineTo(-r * 0.38, -r * 0.8); c.lineTo(r * 0.38, -r * 0.8);
+      c.lineTo(r * 0.55, r * 0.15);
+      c.closePath(); c.fill();
+
+      c.fillStyle = tint(d.color, 0.55, 0.5);
+      c.beginPath();
+      c.moveTo(0, r * 0.95); c.lineTo(-r * 0.17, r * 0.1); c.lineTo(-r * 0.14, -r * 0.76);
+      c.lineTo(0, -r * 0.79); c.closePath(); c.fill();
+      c.fillStyle = 'rgba(0,0,0,.3)';
+      c.beginPath();
+      c.moveTo(r * 0.13, r * 0.86); c.lineTo(r * 0.55, r * 0.13);
+      c.lineTo(r * 0.38, -r * 0.79); c.lineTo(r * 0.13, -r * 0.76);
+      c.closePath(); c.fill();
+
+      c.fillStyle = tint(d.dark, -0.25);
+      c.fillRect(-r * 0.42, -r * 0.05, r * 0.84, r * 0.14);
+
+      const cn = c.createLinearGradient(-r * 0.24, r * 0.05, r * 0.24, r * 0.6);
+      cn.addColorStop(0, '#9fd8ff'); cn.addColorStop(0.4, '#20304a'); cn.addColorStop(1, '#0b1220');
+      c.fillStyle = cn;
+      c.beginPath(); c.ellipse(0, r * 0.35, r * 0.24, r * 0.34, 0, 0, Math.PI * 2); c.fill();
+
+      const gl = c.createRadialGradient(0, -r * 0.8, 0, 0, -r * 0.8, r * 0.3);
+      gl.addColorStop(0, tint(d.glow, 0.5, 0.9));
+      gl.addColorStop(0.4, tint(d.glow, 0, 0.5));
+      gl.addColorStop(1, tint(d.glow, 0, 0));
+      c.fillStyle = gl;
+      c.beginPath(); c.arc(0, -r * 0.8, r * 0.3, 0, Math.PI * 2); c.fill();
+    }
+
+    // Rim light along the shadowed edge — the cue that sells curvature.
+    c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = 'rgba(150,190,255,.22)';
+    c.lineWidth = 1.1 * S;
+    c.beginPath();
+    c.arc(0, 0, r * 0.92, Math.PI * 0.1, Math.PI * 0.9);
+    c.stroke();
+    c.globalCompositeOperation = 'source-over';
+  }
+
+  function raiderSprite(e) {
+    const frame = Math.floor((e.t * 1.6) % FLAP_FRAMES);
+    const flap = Math.sin((frame / FLAP_FRAMES) * Math.PI * 2) * 0.16;
+    const box = e.def.r * S * 4;
+    return Sprites.get('raider:' + e.type + ':' + frame, box, box,
+                       (c) => paintRaider(c, e.def, e.type, flap));
+  }
+
+  function drawEnemy(e) {
+    const r = e.def.r * S;
     ctx.save();
     ctx.translate(e.x, e.y);
 
     if (e.elite) {
+      // Elite marker: a steady ring with four rotating corner ticks.
       ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = 'rgba(255,201,77,' + (0.5 + 0.25 * Math.sin(e.t * 5)) + ')';
-      ctx.lineWidth = 2 * S;
+      const pulse = 0.35 + 0.2 * Math.sin(e.t * 5);
+      ctx.strokeStyle = 'rgba(255,201,77,' + pulse + ')';
+      ctx.lineWidth = 1.2 * S;
       ctx.beginPath();
-      for (let i = 0; i < 3; i++) {
-        const a = e.t * 1.4 + i * (Math.PI * 2 / 3);
-        ctx.arc(0, 0, r * 1.35, a, a + 0.7);
+      ctx.arc(0, 0, r * 1.3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,220,140,' + (pulse + 0.35) + ')';
+      ctx.lineWidth = 2.2 * S;
+      ctx.beginPath();
+      for (let i = 0; i < 4; i++) {
+        const a = e.t * 0.9 + i * (Math.PI / 2);
+        ctx.arc(0, 0, r * 1.3, a - 0.22, a + 0.22);
+        ctx.moveTo(0, 0);
       }
       ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
     }
 
     ctx.rotate(e.angle);
-    ctx.lineJoin = 'round';
-
-    if (e.type === 'turret') {
-      // A gun platform: armour plate, barrel, and a hot targeting eye.
-      ctx.fillStyle = d.dark;
-      ctx.beginPath();
-      ctx.moveTo(-r * 1.15, -r * 0.35);
-      ctx.lineTo(-r * 0.55, -r * 0.95);
-      ctx.lineTo(r * 0.55, -r * 0.95);
-      ctx.lineTo(r * 1.15, -r * 0.35);
-      ctx.lineTo(r * 0.8, r * 0.7);
-      ctx.lineTo(-r * 0.8, r * 0.7);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = hull;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.85, -r * 0.3);
-      ctx.lineTo(-r * 0.42, -r * 0.72);
-      ctx.lineTo(r * 0.42, -r * 0.72);
-      ctx.lineTo(r * 0.85, -r * 0.3);
-      ctx.lineTo(r * 0.6, r * 0.5);
-      ctx.lineTo(-r * 0.6, r * 0.5);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = d.dark;
-      ctx.fillRect(-r * 0.22, r * 0.4, r * 0.44, r * 0.85);
+    const sp = raiderSprite(e);
+    Sprites.blit(ctx, sp);
+    if (e.flash > 0) {
+      // Re-blitting additively flares the whole hull without flattening it.
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = d.glow;
-      ctx.beginPath();
-      ctx.arc(0, -r * 0.1, r * 0.28, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-
-    } else if (e.type === 'commander') {
-      // Elite command craft: forward-swept wings and a canopy ridge.
-      ctx.fillStyle = wing;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.45, r * 0.30);
-      ctx.lineTo(-r * 1.62, -r * (0.28 + flap));
-      ctx.lineTo(-r * 1.34, -r * 0.68);
-      ctx.lineTo(-r * 0.42, -r * 0.55);
-      ctx.closePath();
-      ctx.moveTo(r * 0.45, r * 0.30);
-      ctx.lineTo(r * 1.62, -r * (0.28 - flap));
-      ctx.lineTo(r * 1.34, -r * 0.68);
-      ctx.lineTo(r * 0.42, -r * 0.55);
-      ctx.closePath();
-      ctx.fill();
-      // Wingtip weapon pods
-      ctx.fillStyle = d.dark;
-      ctx.fillRect(-r * 1.5, -r * 0.5, r * 0.22, r * 0.6);
-      ctx.fillRect(r * 1.28, -r * 0.5, r * 0.22, r * 0.6);
-      ctx.fillStyle = hull;
-      ctx.beginPath();
-      ctx.moveTo(0, r * 1.05);
-      ctx.lineTo(-r * 0.7, r * 0.2);
-      ctx.lineTo(-r * 0.45, -r * 0.85);
-      ctx.lineTo(r * 0.45, -r * 0.85);
-      ctx.lineTo(r * 0.7, r * 0.2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = d.dark;
-      ctx.fillRect(-r * 0.5, -r * 0.15, r, r * 0.16);
-      ctx.fillStyle = '#20304a';
-      ctx.beginPath();
-      ctx.ellipse(0, r * 0.35, r * 0.3, r * 0.42, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = d.glow;
-      for (const sx of [-0.32, 0.32]) {
-        ctx.beginPath();
-        ctx.ellipse(sx * r, -r * 0.88, r * 0.15, r * 0.22, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalCompositeOperation = 'source-over';
-
-    } else {
-      // Grunt and knight share an airframe; the knight's wings sweep harder.
-      const sweep = e.type === 'wasp' ? 1.55 : 1.25;
-      ctx.fillStyle = wing;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.38, r * 0.25);
-      ctx.lineTo(-r * sweep, -r * (0.22 + flap));
-      ctx.lineTo(-r * sweep * 0.84, -r * 0.6);
-      ctx.lineTo(-r * 0.36, -r * 0.5);
-      ctx.closePath();
-      ctx.moveTo(r * 0.38, r * 0.25);
-      ctx.lineTo(r * sweep, -r * (0.22 - flap));
-      ctx.lineTo(r * sweep * 0.84, -r * 0.6);
-      ctx.lineTo(r * 0.36, -r * 0.5);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = hull;
-      ctx.beginPath();
-      ctx.moveTo(0, r * 1.0);
-      ctx.lineTo(-r * 0.55, r * 0.15);
-      ctx.lineTo(-r * 0.38, -r * 0.8);
-      ctx.lineTo(r * 0.38, -r * 0.8);
-      ctx.lineTo(r * 0.55, r * 0.15);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = d.dark;
-      ctx.fillRect(-r * 0.42, -r * 0.05, r * 0.84, r * 0.14);
-      ctx.fillStyle = '#20304a';
-      ctx.beginPath();
-      ctx.ellipse(0, r * 0.35, r * 0.24, r * 0.34, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = d.glow;
-      ctx.beginPath();
-      ctx.ellipse(0, -r * 0.82, r * 0.24, r * 0.2, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalAlpha = 0.85;
+      Sprites.blit(ctx, sp);
+      ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
   }
 
   /**
-   * Bosses are war machines with an exposed weak-point core that pulses
-   * brighter as their armour fails.
+   * Boss hulls are painted once into a sprite — panelled metal with lit
+   * upper facets, occluded seams and a specular sweep. Only the weak-point
+   * core and the damage flare are drawn live, because they animate.
    */
+  function paintBoss(c, def, kind) {
+    const r = def.r * S;
+    const hull = bodyGradient(c, def.color, r * 1.2, 0.5, -0.5);
+    const plate = bodyGradient(c, def.plate, r, 0.35, -0.6);
+    const lit = tint(def.color, 0.8);
+
+    c.fillStyle = 'rgba(0,0,0,.35)';
+    c.beginPath();
+    c.ellipse(r * 0.14, r * 0.24, r * 1.45, r * 0.95, 0, 0, Math.PI * 2);
+    c.fill();
+
+    if (kind === 'sentinel') {
+      c.fillStyle = plate;
+      c.beginPath();
+      c.moveTo(-r * 0.35, -r * 0.55); c.lineTo(-r * 1.65, r * 0.05);
+      c.lineTo(-r * 1.42, r * 0.62);  c.lineTo(-r * 0.3, r * 0.5);
+      c.closePath();
+      c.moveTo(r * 0.35, -r * 0.55);  c.lineTo(r * 1.65, r * 0.05);
+      c.lineTo(r * 1.42, r * 0.62);   c.lineTo(r * 0.3, r * 0.5);
+      c.closePath(); c.fill();
+
+      c.strokeStyle = tint(def.plate, 0.55);
+      c.lineWidth = 1.4 * S;
+      c.beginPath();
+      c.moveTo(-r * 0.35, -r * 0.55); c.lineTo(-r * 1.65, r * 0.05);
+      c.moveTo(r * 0.35, -r * 0.55);  c.lineTo(r * 1.65, r * 0.05);
+      c.stroke();
+
+      const chrome = c.createLinearGradient(0, r * 0.1, 0, r * 0.8);
+      chrome.addColorStop(0, '#f2f7ff'); chrome.addColorStop(0.5, '#8d9bb2'); chrome.addColorStop(1, '#3c485c');
+      c.fillStyle = chrome;
+      c.fillRect(-r * 1.5, r * 0.1, r * 0.2, r * 0.7);
+      c.fillRect(r * 1.3, r * 0.1, r * 0.2, r * 0.7);
+
+      c.fillStyle = hull;
+      c.beginPath();
+      c.moveTo(0, r * 1.05);        c.lineTo(-r * 0.66, r * 0.32);
+      c.lineTo(-r * 0.5, -r * 0.7); c.lineTo(0, -r * 0.98);
+      c.lineTo(r * 0.5, -r * 0.7);  c.lineTo(r * 0.66, r * 0.32);
+      c.closePath(); c.fill();
+
+      c.fillStyle = 'rgba(255,255,255,.3)';
+      c.beginPath();
+      c.moveTo(0, r * 1.0); c.lineTo(-r * 0.2, r * 0.3);
+      c.lineTo(-r * 0.16, -r * 0.66); c.lineTo(0, -r * 0.94);
+      c.closePath(); c.fill();
+      c.fillStyle = 'rgba(0,0,0,.3)';
+      c.beginPath();
+      c.moveTo(r * 0.1, r * 0.95); c.lineTo(r * 0.66, r * 0.3);
+      c.lineTo(r * 0.5, -r * 0.68); c.lineTo(r * 0.1, -r * 0.92);
+      c.closePath(); c.fill();
+
+      c.fillStyle = plate;
+      c.fillRect(-r * 0.48, -r * 0.44, r * 0.96, r * 0.1);
+      c.fillRect(-r * 0.4, r * 0.52, r * 0.8, r * 0.1);
+      c.strokeStyle = 'rgba(255,255,255,.25)';
+      c.lineWidth = 1 * S;
+      c.strokeRect(-r * 0.48, -r * 0.44, r * 0.96, r * 0.1);
+
+      c.fillStyle = '#141c2b';
+      c.beginPath(); c.ellipse(0, -r * 0.02, r * 0.36, r * 0.26, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = lit;
+      c.lineWidth = 1.2 * S;
+      c.stroke();
+
+    } else if (kind === 'queen') {
+      c.strokeStyle = plate;
+      c.lineWidth = 5 * S;
+      for (let i = -3; i <= 3; i++) {
+        if (!i) continue;
+        const k = i / 3;
+        c.beginPath();
+        c.moveTo(k * r * 0.5, r * 0.2);
+        c.quadraticCurveTo(k * r * 1.4, r * 0.5, k * r * 1.1, r * 1.06);
+        c.stroke();
+      }
+
+      c.fillStyle = plate;
+      c.beginPath(); c.ellipse(0, 0, r * 1.32, r * 1.0, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = domeGradient(c, def.color, r * 1.1);
+      c.beginPath(); c.ellipse(0, -r * 0.06, r * 1.12, r * 0.8, 0, 0, Math.PI * 2); c.fill();
+
+      c.strokeStyle = 'rgba(12,8,28,.45)';
+      c.lineWidth = 2.5 * S;
+      for (let i = 1; i <= 3; i++) {
+        c.beginPath();
+        c.ellipse(0, -r * 0.06, r * 1.12 * i / 4, r * 0.8 * i / 4, 0, 0, Math.PI * 2);
+        c.stroke();
+      }
+      c.strokeStyle = 'rgba(255,255,255,.16)';
+      c.lineWidth = 1.2 * S;
+      for (let i = 1; i <= 3; i++) {
+        c.beginPath();
+        c.ellipse(0, -r * 0.09, r * 1.12 * i / 4, r * 0.8 * i / 4, 0, Math.PI * 1.05, Math.PI * 1.9);
+        c.stroke();
+      }
+
+      for (let i = 0; i < 7; i++) {
+        const a = i * (Math.PI * 2 / 7) + 0.4;
+        c.save();
+        c.translate(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.58 - r * 0.06);
+        c.fillStyle = domeGradient(c, '#c9b6ee', r * 0.13);
+        c.beginPath(); c.arc(0, 0, r * 0.13, 0, Math.PI * 2); c.fill();
+        c.restore();
+      }
+
+      c.fillStyle = '#150c26';
+      c.beginPath(); c.arc(0, 0, r * 0.5, 0, Math.PI * 2); c.fill();
+
+    } else {
+      c.fillStyle = plate;
+      c.beginPath();
+      c.moveTo(-r * 1.12, -r * 0.82); c.lineTo(r * 1.12, -r * 0.82);
+      c.lineTo(r * 1.6, -r * 0.02);   c.lineTo(r * 1.16, r * 0.82);
+      c.lineTo(-r * 1.16, r * 0.82);  c.lineTo(-r * 1.6, -r * 0.02);
+      c.closePath(); c.fill();
+
+      c.fillStyle = hull;
+      c.beginPath();
+      c.moveTo(-r * 0.98, -r * 0.66); c.lineTo(r * 0.98, -r * 0.66);
+      c.lineTo(r * 1.38, -r * 0.02);  c.lineTo(r * 1.0, r * 0.64);
+      c.lineTo(-r * 1.0, r * 0.64);   c.lineTo(-r * 1.38, -r * 0.02);
+      c.closePath(); c.fill();
+
+      // Lit upper deck, shadowed lower hull
+      c.fillStyle = 'rgba(255,255,255,.22)';
+      c.beginPath();
+      c.moveTo(-r * 0.98, -r * 0.66); c.lineTo(r * 0.98, -r * 0.66);
+      c.lineTo(r * 1.38, -r * 0.02);  c.lineTo(-r * 1.38, -r * 0.02);
+      c.closePath(); c.fill();
+      c.fillStyle = 'rgba(0,0,0,.28)';
+      c.beginPath();
+      c.moveTo(-r * 1.38, r * 0.06); c.lineTo(r * 1.38, r * 0.06);
+      c.lineTo(r * 1.0, r * 0.64);   c.lineTo(-r * 1.0, r * 0.64);
+      c.closePath(); c.fill();
+
+      c.strokeStyle = 'rgba(10,14,22,.55)';
+      c.lineWidth = 2 * S;
+      for (let i = -1; i <= 1; i++) {
+        c.beginPath();
+        c.moveTo(i * r * 0.55, -r * 0.6); c.lineTo(i * r * 0.55, r * 0.58);
+        c.stroke();
+      }
+      c.strokeStyle = 'rgba(255,255,255,.14)';
+      c.lineWidth = 1 * S;
+      for (let i = -1; i <= 1; i++) {
+        c.beginPath();
+        c.moveTo(i * r * 0.55 + 1.6 * S, -r * 0.6); c.lineTo(i * r * 0.55 + 1.6 * S, r * 0.58);
+        c.stroke();
+      }
+
+      const bridge = c.createLinearGradient(0, -r * 1.02, 0, -r * 0.66);
+      bridge.addColorStop(0, '#ffffff'); bridge.addColorStop(1, '#8f9db0');
+      c.fillStyle = bridge;
+      c.beginPath();
+      c.moveTo(-r * 0.55, -r * 0.66); c.lineTo(r * 0.55, -r * 0.66);
+      c.lineTo(r * 0.34, -r * 1.02);  c.lineTo(-r * 0.34, -r * 1.02);
+      c.closePath(); c.fill();
+
+      c.fillStyle = plate;
+      c.fillRect(-r * 1.16, r * 0.5, r * 0.28, r * 0.5);
+      c.fillRect(r * 0.88, r * 0.5, r * 0.28, r * 0.5);
+      c.fillStyle = '#1a1206';
+      c.beginPath(); c.arc(0, -r * 0.06, r * 0.31, 0, Math.PI * 2); c.fill();
+    }
+  }
+
   function drawBoss(b) {
     const r = b.r;
     const PI2 = Math.PI * 2;
-    const c = b.def.color;
-    const plate = b.def.plate;
     const charging = !!(b.beam && !b.beam.active && !b.beam.tractor);
     // The core beats faster the closer the machine is to breaking apart.
     const beat = 0.72 + 0.28 * Math.sin(b.t * (4 + b.phase * 2.4));
-
-    // Draw the shockwave ring for a core hit under the hull art.
     const coreRing = b.coreFlash > 0 ? b.coreFlash / 0.12 : 0;
+    const cd = b.def.coreAt;
 
     ctx.save();
     ctx.translate(b.x, b.y);
-    ctx.lineJoin = 'round';
 
     const halo = ctx.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 2);
     halo.addColorStop(0, 'rgba(255,255,255,.09)');
     halo.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 2, 0, PI2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r * 2, 0, PI2); ctx.fill();
 
+    const box = r * 4;
+    Sprites.blit(ctx, Sprites.get('boss:' + b.kind, box, box,
+                                  (c) => paintBoss(c, b.def, b.kind)));
+
+    // Engine glow, live so it flickers
     if (b.kind === 'sentinel') {
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = 'rgba(120,190,255,.35)';
       for (const sx of [-0.42, 0.42]) {
+        const g = ctx.createRadialGradient(sx * r, -r * 0.95, 0, sx * r, -r * 0.95, r * 0.3);
+        g.addColorStop(0, 'rgba(190,225,255,.8)');
+        g.addColorStop(1, 'rgba(120,190,255,0)');
+        ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.ellipse(sx * r, -r * 0.95, r * 0.17, r * (0.16 + 0.05 * Math.sin(b.t * 14)), 0, 0, PI2);
+        ctx.ellipse(sx * r, -r * 0.95, r * 0.2, r * (0.18 + 0.05 * Math.sin(b.t * 14)), 0, 0, PI2);
         ctx.fill();
       }
-      ctx.globalCompositeOperation = 'source-over';
-
-      // Swept wing pylons
-      ctx.fillStyle = plate;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.35, -r * 0.55);
-      ctx.lineTo(-r * 1.65, r * 0.05);
-      ctx.lineTo(-r * 1.42, r * 0.62);
-      ctx.lineTo(-r * 0.3, r * 0.5);
-      ctx.closePath();
-      ctx.moveTo(r * 0.35, -r * 0.55);
-      ctx.lineTo(r * 1.65, r * 0.05);
-      ctx.lineTo(r * 1.42, r * 0.62);
-      ctx.lineTo(r * 0.3, r * 0.5);
-      ctx.closePath();
-      ctx.fill();
-      // Wingtip cannons
-      ctx.fillStyle = '#cdd8e8';
-      ctx.fillRect(-r * 1.5, r * 0.1, r * 0.2, r * 0.7);
-      ctx.fillRect(r * 1.3, r * 0.1, r * 0.2, r * 0.7);
-
-      // Hull
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.moveTo(0, r * 1.05);
-      ctx.lineTo(-r * 0.66, r * 0.32);
-      ctx.lineTo(-r * 0.5, -r * 0.7);
-      ctx.lineTo(0, -r * 0.98);
-      ctx.lineTo(r * 0.5, -r * 0.7);
-      ctx.lineTo(r * 0.66, r * 0.32);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(10,18,32,.5)';
-      ctx.lineWidth = 2 * S;
-      ctx.stroke();
-      ctx.fillStyle = plate;
-      ctx.fillRect(-r * 0.48, -r * 0.44, r * 0.96, r * 0.1);
-      ctx.fillRect(-r * 0.4, r * 0.52, r * 0.8, r * 0.1);
-
-      // Weak point, seated in a dark housing
-      ctx.fillStyle = '#141c2b';
-      ctx.beginPath();
-      ctx.ellipse(0, -r * 0.02, r * 0.36, r * 0.26, 0, 0, PI2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = charging ? '#fff3a8' : b.def.core;
-      ctx.globalAlpha = beat;
-      ctx.beginPath();
-      ctx.ellipse(0, -r * 0.02, r * 0.30, r * 0.21, 0, 0, PI2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = 'rgba(255,255,255,.9)';
-      ctx.beginPath();
-      ctx.ellipse(0, -r * 0.02, r * 0.12, r * 0.09, 0, 0, PI2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-
-    } else if (b.kind === 'queen') {
-      // Legs / manipulator arms
-      ctx.strokeStyle = plate;
-      ctx.lineWidth = 5 * S;
-      ctx.lineCap = 'round';
-      for (let i = -3; i <= 3; i++) {
-        if (!i) continue;
-        const k = i / 3;
-        ctx.beginPath();
-        ctx.moveTo(k * r * 0.5, r * 0.2);
-        ctx.quadraticCurveTo(k * r * 1.4, r * 0.5, k * r * 1.1, r * (1.0 + 0.12 * Math.sin(b.t * 4 + i)));
-        ctx.stroke();
-      }
-
-      ctx.fillStyle = plate;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, r * 1.32, r * 1.0, 0, 0, PI2);
-      ctx.fill();
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.ellipse(0, -r * 0.06, r * 1.12, r * 0.8, 0, 0, PI2);
-      ctx.fill();
-
-      // Segmented carapace plating
-      ctx.strokeStyle = 'rgba(12,8,28,.4)';
-      ctx.lineWidth = 2.5 * S;
-      for (let i = 1; i <= 3; i++) {
-        ctx.beginPath();
-        ctx.ellipse(0, -r * 0.06, r * 1.12 * i / 4, r * 0.8 * i / 4, 0, 0, PI2);
-        ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(255,255,255,.16)';
-      for (let i = 0; i < 5; i++) {
-        const a = i * 1.256 + b.t * 0.35;
-        ctx.beginPath();
-        ctx.arc(Math.cos(a) * r * 0.8, Math.sin(a) * r * 0.5 - r * 0.06, r * 0.11, 0, PI2);
-        ctx.fill();
-      }
-
-      // Iris core, seated in a dark housing
-      ctx.fillStyle = '#150c26';
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.5, 0, PI2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = beat;
-      ctx.fillStyle = b.act.name === 'tractor' ? '#eaffdc' : b.def.core;
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = i * Math.PI / 3 + b.t * 0.6;
-        ctx.lineTo(Math.cos(a) * r * 0.44, Math.sin(a) * r * 0.44);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.15, 0, PI2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-
-    } else {
-      // Dreadnought: an armoured capital ship
-      ctx.fillStyle = plate;
-      ctx.beginPath();
-      ctx.moveTo(-r * 1.12, -r * 0.82);
-      ctx.lineTo(r * 1.12, -r * 0.82);
-      ctx.lineTo(r * 1.6, -r * 0.02);
-      ctx.lineTo(r * 1.16, r * 0.82);
-      ctx.lineTo(-r * 1.16, r * 0.82);
-      ctx.lineTo(-r * 1.6, -r * 0.02);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = c;
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.98, -r * 0.66);
-      ctx.lineTo(r * 0.98, -r * 0.66);
-      ctx.lineTo(r * 1.38, -r * 0.02);
-      ctx.lineTo(r * 1.0, r * 0.64);
-      ctx.lineTo(-r * 1.0, r * 0.64);
-      ctx.lineTo(-r * 1.38, -r * 0.02);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.strokeStyle = 'rgba(10,14,22,.45)';
-      ctx.lineWidth = 2 * S;
-      for (let i = -1; i <= 1; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i * r * 0.55, -r * 0.6);
-        ctx.lineTo(i * r * 0.55, r * 0.58);
-        ctx.stroke();
-      }
-
-      // Bridge tower
-      ctx.fillStyle = '#b9c6d8';
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.55, -r * 0.66);
-      ctx.lineTo(r * 0.55, -r * 0.66);
-      ctx.lineTo(r * 0.34, -r * 1.02);
-      ctx.lineTo(-r * 0.34, -r * 1.02);
-      ctx.closePath();
-      ctx.fill();
-
-      // Wing turrets and chin cannon
-      ctx.fillStyle = plate;
-      ctx.fillRect(-r * 1.16, r * 0.5, r * 0.28, r * 0.5);
-      ctx.fillRect(r * 0.88, r * 0.5, r * 0.28, r * 0.5);
-      ctx.fillStyle = (charging || (b.beam && b.beam.active)) ? '#fff3a8' : '#4a5462';
-      ctx.fillRect(-r * 0.24, r * 0.55, r * 0.48, r * 0.6);
-
-      // Reactor core, seated in a dark housing
-      ctx.fillStyle = '#1a1206';
-      ctx.beginPath();
-      ctx.arc(0, -r * 0.06, r * 0.31, 0, PI2);
-      ctx.fill();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = beat;
-      ctx.fillStyle = b.def.core;
-      ctx.beginPath();
-      ctx.arc(0, -r * 0.06, r * 0.26, 0, PI2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = 'rgba(255,255,255,.9)';
-      ctx.beginPath();
-      ctx.arc(0, -r * 0.06, r * 0.1, 0, PI2);
-      ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    // Weak-point core
+    const coreCol = charging ? '#fff3a8'
+                  : (b.kind === 'queen' && b.act.name === 'tractor') ? '#eaffdc'
+                  : b.def.core;
+    const cr = cd.r * r;
+    ctx.globalCompositeOperation = 'lighter';
+    const bloom = ctx.createRadialGradient(cd.x * r, cd.y * r, cr * 0.5, cd.x * r, cd.y * r, cr * 2.6);
+    bloom.addColorStop(0, tint(coreCol, 0.1, 0.5 * beat));
+    bloom.addColorStop(1, tint(coreCol, 0, 0));
+    ctx.fillStyle = bloom;
+    ctx.beginPath(); ctx.arc(cd.x * r, cd.y * r, cr * 2.6, 0, PI2); ctx.fill();
+
+    const cg = ctx.createRadialGradient(cd.x * r - cr * 0.25, cd.y * r - cr * 0.3, 0,
+                                        cd.x * r, cd.y * r, cr);
+    cg.addColorStop(0, '#ffffff');
+    cg.addColorStop(0.3, tint(coreCol, 0.45, beat));
+    cg.addColorStop(0.75, tint(coreCol, 0, beat * 0.8));
+    cg.addColorStop(1, tint(coreCol, -0.3, 0));
+    ctx.fillStyle = cg;
+    ctx.beginPath(); ctx.arc(cd.x * r, cd.y * r, cr, 0, PI2); ctx.fill();
+
     if (coreRing > 0) {
-      const c = b.def.coreAt;
-      ctx.globalCompositeOperation = 'lighter';
       ctx.strokeStyle = 'rgba(255,255,255,' + coreRing + ')';
       ctx.lineWidth = 2.5 * S;
       ctx.beginPath();
-      ctx.arc(c.x * r, c.y * r, c.r * r * (1 + (1 - coreRing) * 0.9), 0, PI2);
+      ctx.arc(cd.x * r, cd.y * r, cr * (1 + (1 - coreRing) * 0.9), 0, PI2);
       ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over';
     }
 
-    // A hit lights the whole hull for a frame or two.
     if (b.flash > 0) {
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = 'rgba(255,255,255,.24)';
+      ctx.fillStyle = 'rgba(255,255,255,.22)';
       ctx.beginPath();
       ctx.ellipse(0, 0, r * 1.35, r * 1.0, 0, 0, PI2);
       ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
     }
+    ctx.globalCompositeOperation = 'source-over';
     ctx.restore();
 
     if (b.beam) drawBeam(b);
@@ -2396,132 +2564,144 @@
     ctx.globalAlpha = 1;
   }
 
-  function drawBullets() {
-    ctx.globalCompositeOperation = 'lighter';
-    for (const b of G.pBullets) {
-      if (b.pierce) {
-        // Hyper laser: a long blue-white lance with a bright leading head.
-        ctx.fillStyle = 'rgba(120,190,255,.5)';
-        ctx.beginPath();
-        ctx.ellipse(b.x, b.y, b.r * 1.1, b.r * 5.2, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#eaf6ff';
-        ctx.beginPath();
-        ctx.ellipse(b.x, b.y, b.r * 0.45, b.r * 4.0, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y - b.r * 3.4, b.r * 0.62, 0, Math.PI * 2);
-        ctx.fill();
-        continue;
-      }
-      // Standard laser: green tracer bolt.
-      ctx.fillStyle = 'rgba(141,255,90,.42)';
-      ctx.beginPath();
-      ctx.ellipse(b.x, b.y, b.r * 1.15, b.r * 3.6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#d8ffc2';
-      ctx.beginPath();
-      ctx.ellipse(b.x, b.y, b.r * 0.5, b.r * 2.4, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    for (const b of G.eBullets) {
-      if (b.kind === 'missile') {
-        // A finned missile riding a bright exhaust plume.
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(Math.atan2(b.vy, b.vx) - Math.PI / 2);
+  /** A bolt sprite: hot core, coloured body, soft bloom around it. */
+  function boltSprite(key, color, rw, rh) {
+    const w = rw * 6, h = rh * 3.2;
+    return Sprites.get(key, w, h, (c) => {
+      const bloom = c.createRadialGradient(0, 0, 0, 0, 0, rw * 2.6);
+      bloom.addColorStop(0, tint(color, 0.2, 0.55));
+      bloom.addColorStop(1, tint(color, 0, 0));
+      c.fillStyle = bloom;
+      c.beginPath(); c.ellipse(0, 0, rw * 2.6, rh * 1.5, 0, 0, Math.PI * 2); c.fill();
 
+      const body = c.createLinearGradient(-rw, 0, rw, 0);
+      body.addColorStop(0, tint(color, -0.25));
+      body.addColorStop(0.4, tint(color, 0.35));
+      body.addColorStop(1, tint(color, -0.35));
+      c.fillStyle = body;
+      c.beginPath(); c.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2); c.fill();
+
+      c.fillStyle = 'rgba(255,255,255,.95)';
+      c.beginPath(); c.ellipse(-rw * 0.15, -rh * 0.1, rw * 0.4, rh * 0.66, 0, 0, Math.PI * 2); c.fill();
+    });
+  }
+
+  /** An enemy plasma ball, lit from the upper left like any other sphere. */
+  function orbSprite(key, color, rad) {
+    const box = rad * 5;
+    return Sprites.get(key, box, box, (c) => {
+      const bloom = c.createRadialGradient(0, 0, rad * 0.5, 0, 0, rad * 2.3);
+      bloom.addColorStop(0, tint(color, 0, 0.5));
+      bloom.addColorStop(1, tint(color, 0, 0));
+      c.fillStyle = bloom;
+      c.beginPath(); c.arc(0, 0, rad * 2.3, 0, Math.PI * 2); c.fill();
+
+      c.fillStyle = domeGradient(c, color, rad);
+      c.beginPath(); c.arc(0, 0, rad, 0, Math.PI * 2); c.fill();
+
+      c.fillStyle = 'rgba(255,255,255,.9)';
+      c.beginPath();
+      c.arc(LIGHT.x * rad * 0.4, LIGHT.y * rad * 0.4, rad * 0.3, 0, Math.PI * 2);
+      c.fill();
+    });
+  }
+
+  function missileSprite(r) {
+    return Sprites.get('missile:' + Math.round(r * 10), r * 6, r * 7, (c) => {
+      c.fillStyle = '#ff6b35';
+      c.beginPath();
+      c.moveTo(-r * 0.45, -r * 0.5); c.lineTo(-r * 1.15, -r * 1.15);
+      c.lineTo(-r * 0.45, -r * 1.0); c.closePath();
+      c.moveTo(r * 0.45, -r * 0.5);  c.lineTo(r * 1.15, -r * 1.15);
+      c.lineTo(r * 0.45, -r * 1.0);  c.closePath();
+      c.fill();
+      const bg = c.createLinearGradient(-r * 0.5, 0, r * 0.5, 0);
+      bg.addColorStop(0, '#8d99ab'); bg.addColorStop(0.35, '#ffffff'); bg.addColorStop(1, '#6a778c');
+      c.fillStyle = bg;
+      c.beginPath();
+      c.moveTo(0, r * 1.7);    c.lineTo(r * 0.5, r * 0.4);
+      c.lineTo(r * 0.5, -r);   c.lineTo(-r * 0.5, -r);
+      c.lineTo(-r * 0.5, r * 0.4);
+      c.closePath(); c.fill();
+      c.fillStyle = '#ff3b1f';
+      c.fillRect(-r * 0.5, r * 0.1, r, r * 0.35);
+    });
+  }
+
+  function drawBullets() {
+    for (const b of G.pBullets) {
+      const sp = b.pierce
+        ? boltSprite('bolt:lance:' + Math.round(b.r * 10), '#bfe4ff', b.r * 1.1, b.r * 4.6)
+        : boltSprite('bolt:laser:' + Math.round(b.r * 10), '#8dff5a', b.r * 1.1, b.r * 3.1);
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      if (b.vx) ctx.rotate(Math.atan2(b.vy, b.vx) + Math.PI / 2);
+      Sprites.blit(ctx, sp);
+      ctx.restore();
+    }
+
+    for (const b of G.eBullets) {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      if (b.kind === 'missile') {
+        ctx.rotate(Math.atan2(b.vy, b.vx) - Math.PI / 2);
+        ctx.globalCompositeOperation = 'lighter';
         const flare = b.r * (2.2 + Math.random() * 0.9);
-        ctx.fillStyle = 'rgba(255,190,90,.9)';
+        const fg = ctx.createLinearGradient(0, -b.r * 0.8, 0, -flare);
+        fg.addColorStop(0, 'rgba(255,240,190,.95)');
+        fg.addColorStop(1, 'rgba(255,120,40,0)');
+        ctx.fillStyle = fg;
         ctx.beginPath();
         ctx.moveTo(-b.r * 0.5, -b.r * 0.8);
         ctx.lineTo(0, -flare);
         ctx.lineTo(b.r * 0.5, -b.r * 0.8);
         ctx.closePath();
         ctx.fill();
-
         ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = '#ff6b35';
-        ctx.beginPath();
-        ctx.moveTo(-b.r * 0.45, -b.r * 0.5);
-        ctx.lineTo(-b.r * 1.15, -b.r * 1.15);
-        ctx.lineTo(-b.r * 0.45, -b.r * 1.0);
-        ctx.closePath();
-        ctx.moveTo(b.r * 0.45, -b.r * 0.5);
-        ctx.lineTo(b.r * 1.15, -b.r * 1.15);
-        ctx.lineTo(b.r * 0.45, -b.r * 1.0);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.fillStyle = '#dde6f2';
-        ctx.beginPath();
-        ctx.moveTo(0, b.r * 1.7);
-        ctx.lineTo(b.r * 0.5, b.r * 0.4);
-        ctx.lineTo(b.r * 0.5, -b.r * 1.0);
-        ctx.lineTo(-b.r * 0.5, -b.r * 1.0);
-        ctx.lineTo(-b.r * 0.5, b.r * 0.4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.fillStyle = '#ff3b1f';
-        ctx.fillRect(-b.r * 0.5, b.r * 0.1, b.r, b.r * 0.35);
-        ctx.restore();
-        ctx.globalCompositeOperation = 'lighter';
+        Sprites.blit(ctx, missileSprite(b.r));
       } else {
-        ctx.globalAlpha = 0.4;
-        ctx.fillStyle = b.color;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r * 2.1, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = b.color;
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r * 1.15, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#fff4e6';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r * 0.5, 0, Math.PI * 2);
-        ctx.fill();
+        Sprites.blit(ctx, orbSprite('orb:' + b.color + ':' + Math.round(b.r * 10), b.color, b.r * 1.2));
       }
+      ctx.restore();
     }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
   }
 
   function drawPowerups() {
     for (const p of G.powerups) {
       const wob = Math.sin(p.t * 5) * 2 * S;
-      // The ring turns edge-on and back, catching the light as it falls.
-      const spin = Math.abs(Math.cos(p.t * 2.2));
+      // The ring turns edge-on and back, catching the light as it spins.
+      const spin = Math.max(0.2, Math.abs(Math.cos(p.t * 2.2)));
       ctx.save();
       ctx.translate(p.x, p.y + wob);
 
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = p.def.color;
-      ctx.globalAlpha = 0.22;
-      ctx.beginPath();
-      ctx.arc(0, 0, 15 * S, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      const halo = ctx.createRadialGradient(0, 0, 4 * S, 0, 0, 17 * S);
+      halo.addColorStop(0, tint(p.def.color, 0, 0.28));
+      halo.addColorStop(1, tint(p.def.color, 0, 0));
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(0, 0, 17 * S, 0, Math.PI * 2); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
 
-      ctx.strokeStyle = p.def.color;
-      ctx.lineWidth = 3 * S;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 11 * S * Math.max(0.22, spin), 11 * S, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.save();
+      ctx.scale(spin, 1);
+      const band = ctx.createLinearGradient(-11 * S, -11 * S, 11 * S, 11 * S);
+      band.addColorStop(0, tint(p.def.color, 0.75));
+      band.addColorStop(0.45, p.def.color);
+      band.addColorStop(1, tint(p.def.color, -0.55));
+      ctx.strokeStyle = band;
+      ctx.lineWidth = 3.4 * S;
+      ctx.beginPath(); ctx.arc(0, 0, 11 * S, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = 'rgba(255,255,255,.6)';
       ctx.lineWidth = 1 * S;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 11 * S * Math.max(0.22, spin), 11 * S, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 12.4 * S, Math.PI * 1.05, Math.PI * 1.75); ctx.stroke();
+      ctx.restore();
 
-      if (spin > 0.5) {
-        ctx.fillStyle = p.def.color;
+      if (spin > 0.55) {
+        ctx.fillStyle = '#ffffff';
         ctx.font = 'bold ' + Math.round(11 * S) + 'px -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.globalAlpha = (spin - 0.5) * 2;
+        ctx.globalAlpha = (spin - 0.55) * 2.2;
         ctx.fillText(p.def.glyph, 0, 0.5 * S);
         ctx.globalAlpha = 1;
       }

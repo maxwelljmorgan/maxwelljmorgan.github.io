@@ -121,6 +121,28 @@ colours; angular enemy craft ranked yellow / green / red; and bosses built
 as war machines with an exposed weak-point core that beats faster as their
 armour fails.
 
+### Rendering
+
+Sprites are not drawn path-by-path every frame. Each one is painted once
+into an offscreen canvas at three times its on-screen size and then blitted,
+which buys two things: the supersample keeps edges clean when the sprite is
+scaled down, and doing the expensive shading once affords detail that would
+be far too slow to redraw sixty times a second.
+
+That shading is what makes flat vectors read as rendered objects. One key
+light sits at the upper left, and every hull is built from it: a lit-to-
+shadow gradient across the body, a bright spine and a darkened opposite
+flank, lit leading edges, specular streaks on glass and chrome, a contact
+shadow underneath, and a faint rim light along the shadowed edge. Bullets
+and pickups get the same treatment — spheres are lit as spheres, and the
+power-up rings catch the light as they spin.
+
+Only what animates is drawn live: engine flare flicker, the boss weak-point
+core and its bloom, damage flashes, shields, beams and particles. Sprites
+are keyed by scale and the whole cache is rebuilt when the viewport changes
+size, so rotating a phone re-renders everything at the new resolution
+instead of upscaling stale art.
+
 ## Files
 
 | File | Purpose |
