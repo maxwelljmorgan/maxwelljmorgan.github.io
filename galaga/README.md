@@ -13,8 +13,27 @@ dependencies — open `index.html` and play.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
-- **Power-ups** — gold commanders and boss escorts drop twin cannon, rapid
-  fire, shields, and the occasional extra ship.
+- **Power-ups** — gold commanders and purple gun platforms drop them, as do
+  boss escorts. Losing a ship costs you whatever you were carrying.
+
+## Power-ups
+
+Weapons are exclusive — picking one up replaces the one you have. Everything
+else stacks on top.
+
+| | Power-up | Effect |
+| --- | --- | --- |
+| `II` | Twin cannon | Two parallel streams |
+| `W` | Spread shot | Three shots in a fan; good against divers |
+| `L` | Ion lance | Fires slower, but each bolt runs clean through a column |
+| `R` | Rapid fire | Roughly double the fire rate |
+| `S` | Shield | Absorbs one hit |
+| `V` | Wingmen | Two drones fly your flanks and fire with you |
+| `B` | Smart bomb | Instant: clears every shot on screen and hits every raider at once |
+| `T` | Time warp | Instant: raiders and their fire run at 40% for six seconds — you don't |
+| `1` | Extra life | Rare |
+
+Active effects show as badges in the HUD with their remaining seconds.
 
 ## Bosses
 

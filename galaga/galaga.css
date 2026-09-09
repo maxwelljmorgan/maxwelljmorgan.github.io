@@ -75,18 +75,31 @@ html, body {
 .lives { display: flex; gap: 5px; align-items: center; height: 18px; }
 .life-icon { width: 15px; height: 15px; opacity: .95; }
 
+/* Active power-ups: one small badge each, glyph then seconds remaining. */
 .powerup-chip {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(76, 201, 240, .16);
-  border: 1px solid rgba(76, 201, 240, .5);
-  color: var(--accent);
+  display: flex;
+  gap: 4px;
+  align-items: center;
   margin-left: auto;
-  margin-right: 10px;
+  margin-right: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
+.powerup-chip .pw {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  flex: none;
+  padding: 3px 6px;
+  border-radius: 7px;
+  border: 1px solid currentColor;
+  background: rgba(6, 10, 26, .72);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.powerup-chip .pw b { font-size: 11px; font-weight: 800; }
 
 .icon-btn {
   pointer-events: auto;
@@ -270,17 +283,47 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
 .legend-item { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #cdd4f0; }
 .legend-item b { color: var(--ink); }
 
+/* Legend swatches mirror the pickups drawn on the canvas: glyph on a dark
+   tile, ringed and lit in that power-up's colour. */
+.legend-head {
+  margin: 18px 0 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.legend-head span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .02em;
+  text-transform: none;
+  color: var(--muted);
+}
+
 .pu {
   flex: none;
-  width: 22px; height: 22px;
-  border-radius: 6px;
-  display: inline-block;
-  border: 1px solid rgba(255, 255, 255, .35);
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 10, 26, .85);
+  font-size: 11px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
 }
-.pu-d { background: rgba(76, 201, 240, .35); box-shadow: 0 0 10px rgba(76, 201, 240, .7) inset; }
-.pu-r { background: rgba(255, 209, 102, .35); box-shadow: 0 0 10px rgba(255, 209, 102, .7) inset; }
-.pu-s { background: rgba(126, 255, 179, .3); box-shadow: 0 0 10px rgba(126, 255, 179, .7) inset; }
-.pu-l { background: rgba(247, 37, 133, .3); box-shadow: 0 0 10px rgba(247, 37, 133, .7) inset; }
+.pu-twin   { color: #4cc9f0; border: 1px solid #4cc9f0; box-shadow: 0 0 10px rgba(76, 201, 240, .45); }
+.pu-spread { color: #b07cff; border: 1px solid #b07cff; box-shadow: 0 0 10px rgba(176, 124, 255, .45); }
+.pu-pierce { color: #dbeafe; border: 1px solid #dbeafe; box-shadow: 0 0 10px rgba(219, 234, 254, .45); }
+.pu-rapid  { color: #ffd166; border: 1px solid #ffd166; box-shadow: 0 0 10px rgba(255, 209, 102, .45); }
+.pu-shield { color: #7effb3; border: 1px solid #7effb3; box-shadow: 0 0 10px rgba(126, 255, 179, .45); }
+.pu-wing   { color: #ff9f68; border: 1px solid #ff9f68; box-shadow: 0 0 10px rgba(255, 159, 104, .45); }
+.pu-bomb   { color: #ff5470; border: 1px solid #ff5470; box-shadow: 0 0 10px rgba(255, 84, 112, .45); }
+.pu-warp   { color: #818cf8; border: 1px solid #818cf8; box-shadow: 0 0 10px rgba(129, 140, 248, .45); }
+.pu-life   { color: #f72585; border: 1px solid #f72585; box-shadow: 0 0 10px rgba(247, 37, 133, .45); }
 
 .muted { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
 

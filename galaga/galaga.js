@@ -232,6 +232,8 @@
     escortTimer: 6,
     waveClearTimer: 0,
     shake: 0,
+    slow: 0,                    // time-warp timer
+    flash: 0,                   // smart-bomb screen flash
     announceTimer: 0
   };
 
@@ -242,11 +244,29 @@
     cool: 0,
     invuln: 0,
     shield: false,
-    twin: 0,
+    weapon: 'single',   // single | twin | spread | pierce — one at a time
+    weaponTime: 0,
     rapid: 0,
+    wingmen: 0,
+    drones: [],
     deadTimer: 0,
     thrust: 0
   };
+
+  /** Arms a weapon mode, replacing whatever was equipped. */
+  function setWeapon(kind, seconds) {
+    player.weapon = kind;
+    player.weaponTime = seconds;
+  }
+
+  function launchWingmen(seconds) {
+    player.wingmen = seconds;
+    player.drones = [-1, 1].map((side) => ({
+      side: side,
+      x: player.x + side * 26 * S,
+      y: player.y + 8 * S
+    }));
+  }
 
   // =========================================================
   // 6. Input — drag to fly, tap or auto to fire
@@ -393,9 +413,12 @@
     };
   }
 
+  let enemySeq = 0;
+
   function makeEnemy(type, row, col) {
     const def = TYPES[type];
     return {
+      id: ++enemySeq,
       type: type, def: def, row: row, col: col,
       x: 0, y: 0, angle: 0, ox: 0, oy: 0,
       mode: 'path', path: null, d: 0, speed: 0,
@@ -606,16 +629,36 @@
   // 9. Projectiles and power-ups
   // =========================================================
 
+  function bolt(x, y, vx, vy, r) {
+    G.pBullets.push({ x: x, y: y, vx: vx, vy: vy, r: r || 3.2 * S });
+  }
+
   function playerShoot() {
-    const rate = player.rapid > 0 ? 0.085 : 0.185;
     if (player.cool > 0) return;
-    player.cool = rate;
-    const speed = -720 * S;
-    if (player.twin > 0) {
-      G.pBullets.push({ x: player.x - 7 * S, y: player.y - 12 * S, vx: 0, vy: speed, r: 3.2 * S });
-      G.pBullets.push({ x: player.x + 7 * S, y: player.y - 12 * S, vx: 0, vy: speed, r: 3.2 * S });
+    const speed = 720 * S;
+    const w = player.weapon;
+    // The lance hits harder and passes through, so it fires slower.
+    player.cool = (player.rapid > 0 ? 0.085 : 0.185) * (w === 'pierce' ? 1.5 : 1);
+    const y = player.y - 13 * S;
+
+    if (w === 'twin') {
+      bolt(player.x - 7 * S, y, 0, -speed);
+      bolt(player.x + 7 * S, y, 0, -speed);
+    } else if (w === 'spread') {
+      for (const a of [-0.28, 0, 0.28]) {
+        bolt(player.x, y, Math.sin(a) * speed, -Math.cos(a) * speed);
+      }
+    } else if (w === 'pierce') {
+      G.pBullets.push({
+        x: player.x, y: y, vx: 0, vy: -speed * 1.15,
+        r: 5.5 * S, pierce: true, hit: []
+      });
     } else {
-      G.pBullets.push({ x: player.x, y: player.y - 14 * S, vx: 0, vy: speed, r: 3.2 * S });
+      bolt(player.x, y, 0, -speed);
+    }
+
+    if (player.wingmen > 0) {
+      for (const d of player.drones) bolt(d.x, d.y - 8 * S, 0, -speed * 0.94, 2.6 * S);
     }
     Sound.shoot();
   }
@@ -646,16 +689,18 @@
     });
   }
 
-  function updateBullets(dt) {
+  /** `dt` drives the player's shots; `edt` is the raiders' clock (time warp). */
+  function updateBullets(dt, edt) {
     for (let i = G.pBullets.length - 1; i >= 0; i--) {
       const b = G.pBullets[i];
+      b.x += b.vx * dt;
       b.y += b.vy * dt;
-      if (b.y < -20) G.pBullets.splice(i, 1);
+      if (b.y < -20 || b.x < -30 || b.x > W + 30) G.pBullets.splice(i, 1);
     }
 
     for (let i = G.eBullets.length - 1; i >= 0; i--) {
       const b = G.eBullets[i];
-      b.life -= dt;
+      b.life -= edt;
       if (b.kind === 'missile' && player.alive) {
         // Missiles steer toward the player, but only so fast.
         const want = Math.atan2(player.y - b.y, player.x - b.x);
@@ -663,13 +708,13 @@
         let diff = want - cur;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        cur += clamp(diff, -b.turn * dt, b.turn * dt);
+        cur += clamp(diff, -b.turn * edt, b.turn * edt);
         const sp = hypot(b.vx, b.vy);
         b.vx = Math.cos(cur) * sp;
         b.vy = Math.sin(cur) * sp;
       }
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
+      b.x += b.vx * edt;
+      b.y += b.vy * edt;
       if (b.life <= 0 || b.y > H + 30 || b.y < -60 || b.x < -40 || b.x > W + 40) {
         if (b.kind === 'missile' && b.life <= 0) explode(b.x, b.y, '#ff9f68', 10, 0.8);
         G.eBullets.splice(i, 1);
@@ -677,11 +722,17 @@
     }
   }
 
+  // Weapons replace each other; the rest stack on top of whatever is equipped.
   const POWERUPS = [
-    { kind: 'twin', weight: 34, label: 'TWIN CANNON', color: '#4cc9f0', glyph: 'D' },
-    { kind: 'rapid', weight: 30, label: 'RAPID FIRE', color: '#ffd166', glyph: 'R' },
-    { kind: 'shield', weight: 28, label: 'SHIELD', color: '#7effb3', glyph: 'S' },
-    { kind: 'life', weight: 8, label: 'EXTRA LIFE', color: '#f72585', glyph: '1' }
+    { kind: 'twin',    weight: 18, label: 'TWIN CANNON', color: '#4cc9f0', glyph: 'II' },
+    { kind: 'spread',  weight: 16, label: 'SPREAD SHOT', color: '#b07cff', glyph: 'W' },
+    { kind: 'pierce',  weight: 12, label: 'ION LANCE',   color: '#dbeafe', glyph: 'L' },
+    { kind: 'rapid',   weight: 16, label: 'RAPID FIRE',  color: '#ffd166', glyph: 'R' },
+    { kind: 'shield',  weight: 15, label: 'SHIELD',      color: '#7effb3', glyph: 'S' },
+    { kind: 'wingmen', weight: 11, label: 'WINGMEN',     color: '#ff9f68', glyph: 'V' },
+    { kind: 'bomb',    weight: 7,  label: 'SMART BOMB',  color: '#ff5470', glyph: 'B' },
+    { kind: 'warp',    weight: 7,  label: 'TIME WARP',   color: '#818cf8', glyph: 'T' },
+    { kind: 'life',    weight: 4,  label: 'EXTRA LIFE',  color: '#f72585', glyph: '1' }
   ];
 
   function dropPowerup(x, y) {
@@ -712,12 +763,34 @@
 
   function applyPowerup(def) {
     Sound.powerup();
-    if (def.kind === 'twin') player.twin = 14;
-    else if (def.kind === 'rapid') player.rapid = 12;
-    else if (def.kind === 'shield') player.shield = true;
-    else if (def.kind === 'life') { G.lives++; updateLives(); }
+    switch (def.kind) {
+      case 'twin': setWeapon('twin', 15); break;
+      case 'spread': setWeapon('spread', 15); break;
+      case 'pierce': setWeapon('pierce', 12); break;
+      case 'rapid': player.rapid = 12; break;
+      case 'shield': player.shield = true; break;
+      case 'wingmen': launchWingmen(16); break;
+      case 'warp': G.slow = 6; Sound.tone(760, 0.5, 'sine', 0.06, 180); break;
+      case 'bomb': detonateBomb(); break;
+      case 'life': G.lives++; updateLives(); break;
+    }
     floatText(player.x, player.y - 26 * S, def.label, def.color);
     refreshChip();
+  }
+
+  /** Clears the screen: every shot gone, every raider hit at once. */
+  function detonateBomb() {
+    G.eBullets.length = 0;
+    G.flash = 0.4;
+    G.shake = 20;
+    Sound.bigKill();
+    for (let i = G.enemies.length - 1; i >= 0; i--) {
+      const e = G.enemies[i];
+      explode(e.x, e.y, e.def.color, 16, 1.2);
+      addScore(e.def.pts);
+      G.enemies.splice(i, 1);
+    }
+    if (G.boss) damageBoss(10);
   }
 
   // =========================================================
@@ -1054,6 +1127,10 @@
   }
 
   function floatText(x, y, text, color) {
+    // Stack labels that land together instead of overprinting them.
+    for (const t of G.texts) {
+      if (Math.abs(t.y - y) < 16 * S && Math.abs(t.x - x) < 90 * S) y = t.y - 17 * S;
+    }
     G.texts.push({ x: x, y: y, text: text, color: color || '#fff', life: 1.1 });
   }
 
@@ -1074,6 +1151,7 @@
       if (t.life <= 0) G.texts.splice(i, 1);
     }
     if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 26);
+    if (G.flash > 0) G.flash = Math.max(0, G.flash - dt);
   }
 
   function updatePlayer(dt) {
@@ -1100,8 +1178,25 @@
 
     player.cool -= dt;
     if (player.invuln > 0) player.invuln -= dt;
-    if (player.twin > 0) player.twin -= dt;
     if (player.rapid > 0) player.rapid -= dt;
+    if (player.weaponTime > 0) {
+      player.weaponTime -= dt;
+      if (player.weaponTime <= 0) player.weapon = 'single';
+    }
+    if (player.wingmen > 0) {
+      player.wingmen -= dt;
+      if (player.wingmen <= 0) {
+        for (const d of player.drones) explode(d.x, d.y, '#ff9f68', 10, 0.8);
+        player.drones = [];
+      } else {
+        // Drones trail the ship rather than sticking to it rigidly.
+        const k = Math.min(1, dt * 9);
+        for (const d of player.drones) {
+          d.x += (player.x + d.side * 26 * S - d.x) * k;
+          d.y += (player.y + 8 * S - d.y) * k;
+        }
+      }
+    }
 
     if (settings.autoFire || input.firing) playerShoot();
 
@@ -1124,8 +1219,11 @@
     player.y = player.ty = playerMaxY();
     player.invuln = 2.2;
     player.shield = false;
-    player.twin = 0;
+    player.weapon = 'single';
+    player.weaponTime = 0;
     player.rapid = 0;
+    player.wingmen = 0;
+    player.drones = [];
     player.cool = 0;
     G.eBullets.length = 0;
     refreshChip();
@@ -1164,34 +1262,41 @@
     G.enemies.splice(index, 1);
   }
 
+  const BOSS_HIT_ID = -1;      // stands in for the boss in a pierce hit list
+
   function collisions() {
     // Player shots
     for (let i = G.pBullets.length - 1; i >= 0; i--) {
       const b = G.pBullets[i];
-      let hit = false;
+      let spent = false;
 
       for (let j = G.enemies.length - 1; j >= 0; j--) {
         const e = G.enemies[j];
-        if (hypot(b.x - e.x, b.y - e.y) < e.def.r * S + b.r) {
-          hit = true;
-          e.hp--;
-          e.flash = 0.09;
-          if (e.hp <= 0) killEnemy(j);
-          else { Sound.hit(); explode(b.x, b.y, e.def.color, 4, 0.5); }
-          break;
+        if (hypot(b.x - e.x, b.y - e.y) >= e.def.r * S + b.r) continue;
+        if (b.pierce) {
+          if (b.hit.indexOf(e.id) >= 0) continue;   // already skewered this one
+          b.hit.push(e.id);
+        } else {
+          spent = true;
         }
+        e.hp--;
+        e.flash = 0.09;
+        if (e.hp <= 0) killEnemy(j);
+        else { Sound.hit(); explode(b.x, b.y, e.def.color, 4, 0.5); }
+        if (spent) break;
       }
 
-      if (!hit && G.boss && bossHit(G.boss, b.x, b.y, b.r)) {
+      if (!spent && G.boss && bossHit(G.boss, b.x, b.y, b.r) &&
+          !(b.pierce && b.hit.indexOf(BOSS_HIT_ID) >= 0)) {
         // Hold the reference: the killing blow clears G.boss.
         const boss = G.boss;
-        hit = true;
+        if (b.pierce) b.hit.push(BOSS_HIT_ID); else spent = true;
         damageBoss(1);
         explode(b.x, b.y, boss.def.glow, 5, 0.6);
         Sound.hit();
       }
 
-      if (hit) G.pBullets.splice(i, 1);
+      if (spent) G.pBullets.splice(i, 1);
     }
 
     if (!player.alive || player.invuln > 0) return;
@@ -1258,17 +1363,26 @@
       (n > 6 ? '<span style="font-size:11px;margin-left:4px">x' + n + '</span>' : '');
   }
 
+  const badgeOf = (kind) => POWERUPS.find((p) => p.kind === kind);
+
   function refreshChip() {
-    const parts = [];
-    if (player.twin > 0) parts.push('TWIN ' + Math.ceil(player.twin) + 's');
-    if (player.rapid > 0) parts.push('RAPID ' + Math.ceil(player.rapid) + 's');
-    if (player.shield) parts.push('SHIELD');
-    const txt = parts.join(' · ');
+    const active = [];
+    if (player.weapon !== 'single') active.push([player.weapon, Math.ceil(player.weaponTime)]);
+    if (player.rapid > 0) active.push(['rapid', Math.ceil(player.rapid)]);
+    if (player.wingmen > 0) active.push(['wingmen', Math.ceil(player.wingmen)]);
+    if (G.slow > 0) active.push(['warp', Math.ceil(G.slow)]);
+    if (player.shield) active.push(['shield', 0]);
+
+    const key = active.map((a) => a[0] + a[1]).join(',');
     const chip = el('hudPowerup');
-    if (txt === chip.dataset.txt) return;
-    chip.dataset.txt = txt;
-    chip.textContent = txt;
-    chip.classList.toggle('hidden', txt === '');
+    if (key === chip.dataset.key) return;
+    chip.dataset.key = key;
+    chip.innerHTML = active.map(([kind, secs]) => {
+      const def = badgeOf(kind);
+      return '<span class="pw" style="color:' + def.color + ';border-color:' + def.color + '">' +
+             '<b>' + def.glyph + '</b>' + (secs ? secs : '') + '</span>';
+    }).join('');
+    chip.classList.toggle('hidden', active.length === 0);
   }
   function announce(main, sub, danger) {
     const a = el('announce');
@@ -1377,7 +1491,8 @@
       ctx.fill();
 
       // Wing accents + cockpit
-      ctx.fillStyle = player.twin > 0 ? '#4cc9f0' : '#2e77c9';
+      const WEAPON_TINT = { twin: '#4cc9f0', spread: '#b07cff', pierce: '#dbeafe' };
+      ctx.fillStyle = WEAPON_TINT[player.weapon] || '#2e77c9';
       ctx.fillRect(-12 * S, 6 * S, 5 * S, 5 * S);
       ctx.fillRect(7 * S, 6 * S, 5 * S, 5 * S);
       ctx.fillStyle = '#4cc9f0';
@@ -1396,6 +1511,39 @@
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.restore();
+  }
+
+  function drawDrones() {
+    if (player.wingmen <= 0 || !player.alive) return;
+    // They blink out over the last two seconds so the loss isn't a surprise.
+    if (player.wingmen < 2 && Math.floor(G.time * 10) % 2 === 0) return;
+    for (const d of player.drones) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgba(255,159,104,.5)';
+      ctx.beginPath();
+      ctx.moveTo(-2.5 * S, 6 * S);
+      ctx.lineTo(0, (6 + 4 + Math.sin(G.time * 38) * 2) * S);
+      ctx.lineTo(2.5 * S, 6 * S);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+
+      ctx.fillStyle = '#ffd9c2';
+      ctx.beginPath();
+      ctx.moveTo(0, -9 * S);
+      ctx.lineTo(6.5 * S, 6 * S);
+      ctx.lineTo(0, 3 * S);
+      ctx.lineTo(-6.5 * S, 6 * S);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ff9f68';
+      ctx.beginPath();
+      ctx.arc(0, -1 * S, 2 * S, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   function drawEnemy(e) {
@@ -1765,6 +1913,17 @@
   function drawBullets() {
     ctx.globalCompositeOperation = 'lighter';
     for (const b of G.pBullets) {
+      if (b.pierce) {
+        ctx.fillStyle = 'rgba(219,234,254,.5)';
+        ctx.beginPath();
+        ctx.ellipse(b.x, b.y, b.r * 1.15, b.r * 5.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(b.x, b.y, b.r * 0.45, b.r * 4.2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
       ctx.fillStyle = 'rgba(90,215,255,.45)';
       ctx.beginPath();
       ctx.ellipse(b.x, b.y, b.r * 1.05, b.r * 3.4, 0, 0, Math.PI * 2);
@@ -1873,11 +2032,26 @@
     drawPowerups();
     for (const e of G.enemies) drawEnemy(e);
     if (G.boss) drawBoss(G.boss);
-    if (G.state !== 'menu' && G.state !== 'over' && player.alive) drawPlayer();
+    if (G.state !== 'menu' && G.state !== 'over' && player.alive) {
+      drawDrones();
+      drawPlayer();
+    }
     drawBullets();
     drawParticles();
     drawTexts();
     ctx.restore();
+
+    // Time warp washes the field in cold light; the bomb blows it out white.
+    if (G.slow > 0) {
+      ctx.fillStyle = 'rgba(129,140,248,' + (0.10 + 0.03 * Math.sin(G.time * 6)) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (G.flash > 0) {
+      ctx.globalAlpha = clamp(G.flash / 0.4, 0, 1) * 0.8;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
   }
 
   // =========================================================
@@ -1886,13 +2060,17 @@
 
   function update(dt) {
     G.time += dt;
-    updateStars(dt, G.state === 'menu' ? 1.8 : 1);
+    // Time warp slows the raiders and their shots — never the player.
+    if (G.slow > 0) G.slow = Math.max(0, G.slow - dt);
+    const edt = G.slow > 0 ? dt * 0.4 : dt;
+
+    updateStars(dt, G.state === 'menu' ? 1.8 : (G.slow > 0 ? 0.4 : 1));
     updateEffects(dt);
 
     if (G.state === 'menu' || G.state === 'over' || G.state === 'paused') return;
 
     updatePlayer(dt);
-    updateBullets(dt);
+    updateBullets(dt, edt);
     updatePowerups(dt);
 
     if (G.state === 'intro') {
@@ -1902,16 +2080,16 @@
     }
 
     if (G.state === 'clear') {
-      updateEnemies(dt);
+      updateEnemies(edt);
       G.waveClearTimer -= dt;
       if (G.waveClearTimer <= 0) { hideAnnounce(); advanceWave(); }
       return;
     }
 
     // --- state 'play' ---
-    updateSpawnQueue(dt);
-    updateEnemies(dt);
-    updateBoss(dt);
+    updateSpawnQueue(edt);
+    updateEnemies(edt);
+    updateBoss(edt);
     collisions();
     refreshChip();
 
@@ -1979,9 +2157,14 @@
     player.y = player.ty = playerMaxY();
     player.invuln = 1.6;
     player.shield = false;
-    player.twin = 0;
+    player.weapon = 'single';
+    player.weaponTime = 0;
     player.rapid = 0;
+    player.wingmen = 0;
+    player.drones = [];
     player.cool = 0;
+    G.slow = 0;
+    G.flash = 0;
 
     el('hudScore').textContent = '0';
     el('hudBest').textContent = records.best.toLocaleString();
