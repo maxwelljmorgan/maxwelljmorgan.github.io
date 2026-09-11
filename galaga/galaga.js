@@ -248,8 +248,8 @@
       blurb: 'Start every run with a smart bomb in the rack.' },
     { id: 'dice',      name: 'Requisition',     cap: 2, costs: [50, 120],
       blurb: 'Start every run with an extra refit reroll.' },
-    { id: 'headstart', name: 'Shakedown Run',   cap: 1, costs: [220],
-      blurb: 'Take one refit pick before wave 1.' },
+    { id: 'headstart', name: 'Shakedown Run',   cap: 1, costs: [180],
+      blurb: 'Take a second loadout pick before wave 1.' },
     { id: 'salvright', name: 'Salvage Rights',  cap: 2, costs: [80, 180],
       blurb: 'Earn 25% more scrap from every run.' }
   ];
@@ -1753,8 +1753,9 @@
   }
 
   /** Weighted draw of n distinct cards from whatever is not yet capped. */
-  function drawOffer(n) {
-    const eligible = CARDS.filter((c) => upLevel(c.id) < c.cap);
+  function drawOffer(n, noPacts) {
+    const eligible = CARDS.filter((c) => upLevel(c.id) < c.cap &&
+                                         !(noPacts && c.rarity === 'pact'));
     const taken = [];
     while (taken.length < n) {
       const avail = eligible.filter((c) => taken.indexOf(c) < 0);
@@ -1773,6 +1774,8 @@
   }
 
   function renderOffer() {
+    el('upgradeTitle').textContent = G.refitTitle;
+    el('upgradeSub').textContent = G.refitSub;
     el('upgradePicks').textContent = G.picks > 1
       ? G.picks + ' picks left' : 'Pick one';
     const rr = el('rerollBtn');
@@ -1801,12 +1804,16 @@
    * Opens the refit. `then` is what to run once every pick is spent, so the
    * same screen serves a boss reward and the run-opening free pick.
    */
-  function offerUpgrade(picks, then) {
+  function offerUpgrade(picks, then, opts) {
+    const o = opts || {};
     G.refitNext = then || advanceWave;
+    G.refitTitle = o.title || 'Refit';
+    G.refitSub = o.sub || 'Picks last the rest of the run.';
+    G.noPacts = !!o.noPacts;
     // A run that just lost its last ship goes to the game-over screen instead.
     if (!player.alive && G.lives <= 0) { G.refitNext(); return; }
     G.picks = picks;
-    G.offer = drawOffer(3);
+    G.offer = drawOffer(3, G.noPacts);
     if (!G.offer.length) { G.refitNext(); return; }
 
     renderOffer();
@@ -1819,7 +1826,7 @@
   function rerollOffer() {
     if (G.state !== 'upgrade' || G.rerolls <= 0) return;
     G.rerolls--;
-    G.offer = drawOffer(3);
+    G.offer = drawOffer(3, G.noPacts);
     Sound.powerup();
     renderOffer();
   }
@@ -1843,7 +1850,7 @@
     Sound.levelUp();
 
     if (G.picks > 0) {
-      G.offer = drawOffer(3);
+      G.offer = drawOffer(3, G.noPacts);
       if (G.offer.length) { renderOffer(); return; }
     }
     G.offer = null;
@@ -2925,6 +2932,7 @@
     G.shock = null;
 
     el('hudScore').textContent = '0';
+    el('hudWave').textContent = G.wave;   // the loadout screen sits over the HUD
     el('hudBest').textContent = records.best.toLocaleString();
     updateBombs();
     updateLives();
@@ -2932,9 +2940,13 @@
     updateComboHud();
     el('hud').classList.remove('hidden');
     showScreen(null);
-    // Shakedown Run hands you a pick before the first wave.
-    if (perkLevel('headstart')) offerUpgrade(1, startWave);
-    else startWave();
+    // Every run opens with a loadout pick, so the build layer is visible
+    // from the first wave rather than gated behind the first boss.
+    offerUpgrade(1 + perkLevel('headstart'), startWave, {
+      title: 'Launch Loadout',
+      sub: 'Choose your opening upgrade. It lasts the whole run.',
+      noPacts: true          // pacts are a mid-run gamble, not a first choice
+    });
   }
 
   function pauseGame() {

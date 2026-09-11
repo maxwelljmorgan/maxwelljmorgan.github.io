@@ -16,9 +16,11 @@ dependencies — open `index.html` and play.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
-- **Refit** — beating a boss earns two picks from three cards. They stack,
-  last the whole run, and drop out of the pool once maxed, so no two runs
-  build the same way. Tap a card or press 1-3; `R` spends a reroll.
+- **Loadout** — every run opens with a free pick from three cards, before
+  wave 1, so you are always building toward something.
+- **Refit** — beating a boss earns two more picks. Cards stack, last the
+  whole run, and drop out of the pool once maxed, so no two runs build the
+  same way. Tap a card or press 1-3; `R` spends a reroll.
 - **Elites** — raiders ringed in gold take triple damage to kill, are worth
   triple score, and always drop a power-up.
 - **Power-ups** — red command craft and armoured gun platforms drop them, as
@@ -26,9 +28,13 @@ dependencies — open `index.html` and play.
 
 ## Refit
 
-Three cards are drawn after each boss falls, weighted by rarity, from
-whatever is not yet capped. You take two of them. Rerolls redraw the three;
-you start each run with one.
+Every run opens with one free pick before wave 1, and each boss you beat is
+worth two more. Cards are drawn three at a time, weighted by rarity, from
+whatever is not yet capped. Rerolls redraw the three; you start each run
+with one.
+
+Pacts are held back from the opening draw — they are a mid-run gamble, not
+a choice to hand someone before they have flown a wave.
 
 ### Upgrades
 
@@ -70,7 +76,7 @@ far you reached, then spend it on perks that apply to every run afterwards.
 | Reserve Bay | Start with an extra ship | III |
 | Munitions Store | Start with a smart bomb in the rack | II |
 | Requisition | Start with an extra refit reroll | II |
-| Shakedown Run | Take one refit pick before wave 1 | I |
+| Shakedown Run | Take a second loadout pick before wave 1 | I |
 | Salvage Rights | Earn 25% more scrap per run | II |
 
 Practice runs started with `?wave=N` bank no scrap and set no records.

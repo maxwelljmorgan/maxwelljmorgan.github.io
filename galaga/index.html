@@ -92,7 +92,8 @@
         <li><b>Combo</b> — kills chain while the bar under your score is draining. Every five kills adds a multiplier, up to &times;8. Going quiet drops it, and so does getting hit.</li>
         <li><b>Bosses</b> — waves 4, 8 and 12 end in a boss. Watch for the red charge glow: that means a beam is about to fire.</li>
         <li><b>Weak points</b> — every boss has a glowing core. Hits there do double damage, and it beats faster as its armour fails.</li>
-        <li><b>Refit</b> — beat a boss and you get two picks from three cards: permanent upgrades that stack for the rest of the run. Rarer cards are stronger, and <b>pacts</b> trade a real drawback for a bigger payoff. Tap a card or press <b>1</b>-<b>3</b>, and spend a reroll if you dislike the draw.</li>
+        <li><b>Loadout</b> — every run opens with a free pick from three cards, before wave 1.</li>
+        <li><b>Refit</b> — beat a boss and you get two more picks. Cards are permanent upgrades that stack for the rest of the run; rarer ones are stronger, and <b>pacts</b> trade a real drawback for a bigger payoff. Tap a card or press <b>1</b>-<b>3</b>, and spend a reroll if you dislike the draw. Pacts only turn up after the first boss.</li>
         <li><b>Elites</b> — raiders ringed in gold take three times the punishment, are worth three times the score, and always drop a power-up.</li>
         <li><b>Scrap</b> — every run banks scrap based on score and how far you got. Spend it in the <b>Hangar</b> on permanent perks that carry into all future runs.</li>
         <li><b>Power-ups</b> — shoot the red command craft and the armoured gun platforms to drop them. Losing a ship costs you whatever you were carrying.</li>
@@ -140,8 +141,8 @@
   <!-- ======================= UPGRADE CHOICE ====================== -->
   <section id="upgrade" class="screen">
     <div class="panel upgrade-panel">
-      <h2>Refit</h2>
-      <p class="muted upgrade-sub">Picks last the rest of the run. <span id="upgradePicks" class="picks-left">Pick one</span></p>
+      <h2 id="upgradeTitle">Refit</h2>
+      <p class="muted upgrade-sub"><span id="upgradeSub">Picks last the rest of the run.</span> <span id="upgradePicks" class="picks-left">Pick one</span></p>
       <div id="upgradeCards" class="up-cards"></div>
       <button id="rerollBtn" class="reroll-btn">Reroll (1)</button>
     </div>
