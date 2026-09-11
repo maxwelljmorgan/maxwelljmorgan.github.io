@@ -322,7 +322,6 @@
     wave: 1,
     loop: 1,                    // campaign repetitions, drives difficulty
     lives: 3,
-    nextExtraLife: 20000,
     enemies: [],
     spawnQueue: [],
     pBullets: [],
@@ -505,7 +504,7 @@
   // The 12-wave campaign. After wave 12 it loops with tougher numbers.
   const WAVES = [
     { name: 'First Contact', rows: ['grunt', 'grunt'], cols: 8, dive: [2.6, 3.6], divers: 1, bspd: 1.00, snipe: 0 },
-    { name: 'Swarm', rows: ['wasp', 'grunt', 'grunt'], cols: 8, dive: [2.2, 3.2], divers: 1, bspd: 1.02, snipe: 0 },
+    { name: 'Swarm', rows: ['wasp', 'grunt', 'grunt'], cols: 8, dive: [2.2, 3.2], divers: 1, bspd: 1.02, snipe: 7.0 },
     { name: 'Gold Command', rows: ['commander', 'wasp', 'grunt', 'grunt'], cols: 8, dive: [2.0, 2.9], divers: 2, bspd: 1.05, snipe: 5.5 },
     { name: 'The Sentinel', boss: 'sentinel' },
     { name: 'Crossfire', rows: ['wasp', 'wasp', 'grunt', 'grunt'], cols: 9, dive: [1.8, 2.6], divers: 2, bspd: 1.08, snipe: 4.5 },
@@ -1017,7 +1016,7 @@
     el('bossName').textContent = d.name;
     el('bossBarFill').style.width = '100%';
     el('bossBarWrap').classList.remove('hidden');
-    G.escortTimer = 7;
+    G.escortTimer = 13;
   }
 
   function bossPhase(b) {
@@ -1025,7 +1024,7 @@
     return f > 0.6 ? 1 : f > 0.3 ? 2 : 3;
   }
 
-  function bossRest(b) { return [0.95, 0.7, 0.5][b.phase - 1]; }
+  function bossRest(b) { return [1.5, 0.7, 0.5][b.phase - 1]; }
 
   function bossChooseAction(b) {
     const pool = b.def.pools[b.phase - 1];
@@ -1119,7 +1118,7 @@
         if (t >= a.step * 0.6) {
           a.step++;
           const base = aimAngle();
-          const n = 3 + b.phase;
+          const n = b.phase === 1 ? 3 : 3 + b.phase;
           for (let i = 0; i < n; i++) {
             const off = (i - (n - 1) / 2) * 0.22;
             bossBullet(b.x, b.y + b.r * 0.6, base + off, 230 * S * speedMul, { color: b.def.shot });
@@ -1141,7 +1140,7 @@
         break;
       }
       case 'aimed': {
-        if (t >= a.step * 0.16) {
+        if (t >= a.step * (b.phase === 1 ? 0.26 : 0.16)) {
           a.step++;
           bossBullet(b.x + rand(-1, 1) * b.r * 0.5, b.y + b.r * 0.5, aimAngle(), 340 * S * speedMul, { r: 4, color: '#fff0a8' });
         }
@@ -1644,13 +1643,6 @@
     G.score += n;
     if (G.practice) { el('hudScore').textContent = G.score.toLocaleString(); return; }
     el('hudScore').textContent = G.score.toLocaleString();
-    if (G.score >= G.nextExtraLife) {
-      G.nextExtraLife += 40000;
-      G.lives++;
-      updateLives();
-      floatText(player.x, player.y - 34 * S, 'EXTRA SHIP', '#f72585');
-      Sound.powerup();
-    }
     if (G.score > records.best) {
       records.best = G.score;
       el('hudBest').textContent = records.best.toLocaleString();
@@ -1715,6 +1707,24 @@
     G.boss = null;
     el('bossBarWrap').classList.add('hidden');
     el('hudWave').textContent = G.wave;
+
+    // A spare ship on the run-up to every boss (waves 3, 7, 11, ...).
+    if (G.wave >= 3 && (G.wave - 3) % 4 === 0) {
+      G.lives++;
+      updateLives();
+      floatText(player.x, player.y - 34 * S, 'EXTRA SHIP', '#ffd166');
+      Sound.powerup();
+    }
+
+    // Nobody should meet a boss on their last ship because the run-up went
+    // badly. Reserves are topped up to three, and never reduced.
+    if (def.boss && G.lives < 3) {
+      G.lives = 3;
+      updateLives();
+      floatText(player.x, player.y - 34 * S, 'RESERVES RESTOCKED', '#5cd6ff');
+      Sound.powerup();
+    }
+
     if (!G.practice && G.wave > records.bestWave) {
       records.bestWave = G.wave;
       Store.set('bestWave', G.wave);
@@ -2897,7 +2907,6 @@
     G.lives = 3 + perkLevel('reserve');
     G.rerolls = 1 + perkLevel('dice');
     G.taken = [];
-    G.nextExtraLife = 20000;
     G.startBest = records.best;
     G.enemies.length = 0;
     G.spawnQueue.length = 0;

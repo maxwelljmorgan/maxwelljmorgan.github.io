@@ -13,6 +13,9 @@ dependencies — open `index.html` and play.
 - **Combo** — kills chain while the bar under your score is draining. Every
   five kills adds a multiplier, up to ×8. Going quiet drops it, and so does
   getting hit.
+- **Ships** — you start with three, gain one on the run-up to every boss
+  (waves 3, 7, 11), and your reserve is topped up to three when a boss wave
+  begins, so a bad run-up never puts you into a boss on your last ship.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
@@ -111,6 +114,11 @@ Active effects show as badges in the HUD with their remaining seconds.
 
 Each boss has three phases; armour breaches at 60% and 30% health reset its
 attack script and clear the screen of shots.
+
+Phase one is deliberately the gentlest: longer rests between attacks,
+narrower fans, slower strafing bursts and escorts that arrive late. It is
+where a player meets bullet patterns for the first time. Phases two and
+three are not eased at all, so the fight still bites once the armour breaks.
 
 Every boss carries an exposed core, seated in a dark housing and beating
 faster as its armour fails. Hits on the core do double damage — it is a
