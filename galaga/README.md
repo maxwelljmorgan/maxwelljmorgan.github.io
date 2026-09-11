@@ -38,15 +38,16 @@ made from the game loop rather than from a tap may be ignored.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
-- **Loadout** — every run opens with a free pick from three cards, before
+- **Loadout** — every run opens with two free picks from three cards, before
   wave 1, so you are always building toward something.
 - **Refit** — beating a boss earns two more picks. Cards stack, last the
   whole run, and drop out of the pool once maxed, so no two runs build the
   same way. Tap a card or press 1-3; `R` spends a reroll.
 - **Elites** — raiders ringed in gold take triple damage to kill, are worth
-  triple score, and always drop a power-up.
-- **Power-ups** — red command craft and armoured gun platforms drop them, as
-  do boss escorts. Losing a ship costs you whatever you were carrying.
+  triple score, and always drop a power-up. Every wave carries at least one.
+- **Power-ups** — scarce by design. Every elite leaves one behind; beyond
+  that only red command craft and armoured gun platforms roll for a drop,
+  and they rarely do. Losing a ship costs you whatever you were carrying.
 
 ## Capture and rescue
 
@@ -59,7 +60,7 @@ out of your firing solution: destroy the captor and you always get it back.
 
 ## Refit
 
-Every run opens with one free pick before wave 1, and each boss you beat is
+Every run opens with two free picks before wave 1, and each boss you beat is
 worth two more. Cards are drawn three at a time, weighted by rarity, from
 whatever is not yet capped. Rerolls redraw the three; you start each run
 with one.
@@ -77,7 +78,7 @@ a choice to hand someone before they have flown a wave.
 | Salvage Crew | Common | Raiders drop power-ups far more often | III |
 | Autoloader | Rare | Fire 12% faster | IV |
 | Bomb Rack | Rare | Carry one more bomb, and take one now | II |
-| Nanoshield | Rare | Your barrier rebuilds itself over time | II |
+| Coolant Loop | Rare | Power-ups you pick up last 50% longer | II |
 | Tractor Rig | Rare | Power-ups drift toward your ship | I |
 | Targeting Optics | Epic | Boss core hits do +1 damage | II |
 | Overdrive | Epic | Combo multiplier caps 2 steps higher | II |
@@ -99,15 +100,18 @@ Pacts buy power with a real drawback. They sit in the same draw.
 
 ## Hangar
 
-Scrap is the only thing that survives a run — you bank it from score and how
-far you reached, then spend it on perks that apply to every run afterwards.
+Scrap is the only thing that survives a run — you bank it from score and,
+more heavily, from how far you reached: eight per wave cleared, plus a
+one-time bounty for every boss you put down (40 for the Sentinel, 80 for the
+Hive Queen, 150 for each Dreadnought). Spend it on perks that apply to every
+run afterwards.
 
 | Perk | Effect | Max |
 | --- | --- | --- |
 | Reserve Bay | Start with an extra ship | III |
 | Munitions Store | Start with a smart bomb in the rack | II |
 | Requisition | Start with an extra refit reroll | II |
-| Shakedown Run | Take a second loadout pick before wave 1 | I |
+| Shakedown Run | Take an extra loadout pick before wave 1 | I |
 | Salvage Rights | Earn 25% more scrap per run | II |
 
 Practice runs started with `?wave=N` bank no scrap and set no records.
@@ -124,13 +128,14 @@ they survive losing a ship; every other effect is lost with it.
 | `W` | Spread laser | Three bolts in a fan; good against divers |
 | `L` | Hyper laser | Fires slower, but each bolt runs clean through a column |
 | `R` | Rapid fire | Roughly double the fire rate |
-| `S` | Barrier | Absorbs one hit |
 | `V` | Wingmen | Two drones fly your flanks and fire with you |
 | `B` | Smart bomb | Stocks up to three. Tap the bomb button (or `B`) to clear every shot on screen and hit every raider at once. The button is inert to drags, so flying from that corner never spends one |
 | `T` | Time warp | Instant: raiders and their fire run at 40% for six seconds — you don't |
 | `1` | Extra life | Rare |
 
-Active effects show as badges in the HUD with their remaining seconds.
+Active effects show as badges in the HUD with their remaining seconds. A
+drop is never a weapon while the weapon you are holding still has real time
+left on it, so a pickup can't waste itself overwriting the one you have.
 
 ## Bosses
 

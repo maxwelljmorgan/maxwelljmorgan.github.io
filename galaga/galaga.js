@@ -235,7 +235,7 @@
       if (!this.on || !this.supported) return;
       try { navigator.vibrate(pattern); } catch (e) { /* refused by the browser */ }
     },
-    shieldHit() { this.buzz(35); },
+    glanced() { this.buzz(35); },   // a knock that cost you something short of the ship
     shipLost() { this.buzz([90, 50, 140]); },
     bomb() { this.buzz([25, 25, 70]); },
     powerup() { this.buzz(18); },
@@ -286,15 +286,23 @@
     { id: 'dice',      name: 'Requisition',     cap: 2, costs: [50, 120],
       blurb: 'Start every run with an extra refit reroll.' },
     { id: 'headstart', name: 'Shakedown Run',   cap: 1, costs: [180],
-      blurb: 'Take a second loadout pick before wave 1.' },
+      blurb: 'Take an extra loadout pick before wave 1.' },
     { id: 'salvright', name: 'Salvage Rights',  cap: 2, costs: [80, 180],
       blurb: 'Earn 25% more scrap from every run.' }
   ];
 
   const perkLevel = (id) => records.perks[id] || 0;
 
+  /**
+   * Scrap leans on how deep a run got rather than on how much score it farmed
+   * in the shallows, and each boss cleared pays a one-time bounty on top.
+   */
   function scrapEarned() {
-    const base = Math.floor(G.score / 400) + (G.wave - 1) * 4;
+    const cleared = G.wave - 1;                  // waves actually finished
+    let base = Math.floor(G.score / 500) + cleared * 8;
+    if (cleared >= 4) base += 40;                // the Sentinel
+    if (cleared >= 8) base += 80;                // the Hive Queen
+    base += 150 * (G.loop - 1);                  // every Dreadnought after that
     return Math.max(1, Math.round(base * (1 + 0.25 * perkLevel('salvright'))));
   }
 
@@ -378,7 +386,6 @@
     taken: [],                  // pick order, for the end-of-run recap
     picks: 0,                   // refit picks still owed
     rerolls: 1,
-    shieldTimer: 0,
     combo: 0,                   // kills chained inside the combo window
     comboTimer: 0,
     lastMult: 1,
@@ -397,7 +404,6 @@
     alive: true,
     cool: 0,
     invuln: 0,
-    shield: false,
     weapon: 'single',   // single | twin | spread | pierce — one at a time
     weaponTime: 0,
     rapid: 0,
@@ -559,8 +565,8 @@
   const TYPES = {
     grunt:     { hp: 1, pts: 60,  r: 11, color: '#ffcf4d', dark: '#7a5a0e', wing: '#d9a327', glow: '#fff0a8', speed: 1.00, aim: 0.30 },
     wasp:      { hp: 1, pts: 90,  r: 11, color: '#8fd858', dark: '#2c5c1c', wing: '#5da832', glow: '#d8ff9e', speed: 1.20, aim: 0.45 },
-    commander: { hp: 2, pts: 180, r: 13, color: '#ff7a4d', dark: '#7d2a10', wing: '#d84f22', glow: '#ffc9a8', speed: 1.08, aim: 0.55, drop: 0.42 },
-    turret:    { hp: 3, pts: 140, r: 12, color: '#9aa6bd', dark: '#2b3548', wing: '#5d6c88', glow: '#ff5a2b', speed: 0.85, aim: 0.9, static: true, drop: 0.2 }
+    commander: { hp: 2, pts: 180, r: 13, color: '#ff7a4d', dark: '#7d2a10', wing: '#d84f22', glow: '#ffc9a8', speed: 1.08, aim: 0.55, drop: 0.15 },
+    turret:    { hp: 3, pts: 140, r: 12, color: '#9aa6bd', dark: '#2b3548', wing: '#5d6c88', glow: '#ff5a2b', speed: 0.85, aim: 0.9, static: true, drop: 0.08 }
   };
 
   // The 12-wave campaign. After wave 12 it loops with tougher numbers.
@@ -739,9 +745,10 @@
     G.rowCount = def.rows.length;
 
     // A few raiders per wave are elites: triple health and score, and they
-    // always leave a power-up behind.
+    // always leave a power-up behind. Every wave carries at least one, so the
+    // opening waves still teach pickups even though the random rolls are rare.
     const total = def.rows.length * def.cols;
-    const eliteCount = Math.min(5, Math.floor(G.wave / 3) + (G.loop - 1));
+    const eliteCount = Math.min(4, 1 + Math.floor(G.wave / 4) + (G.loop - 1));
     const eliteSlots = {};
     let placed = 0;
     for (let guard = 0; placed < eliteCount && guard < 200; guard++) {
@@ -1087,25 +1094,36 @@
 
   // Weapons replace each other; the rest stack on top of whatever is equipped.
   const POWERUPS = [
-    { kind: 'twin',    weight: 18, label: 'TWIN LASER',  color: '#8dff5a', glyph: 'II' },
-    { kind: 'spread',  weight: 16, label: 'SPREAD LASER', color: '#4da6ff', glyph: 'W' },
-    { kind: 'pierce',  weight: 12, label: 'HYPER LASER',  color: '#cfe8ff', glyph: 'L' },
-    { kind: 'rapid',   weight: 16, label: 'RAPID FIRE',   color: '#ffc94d', glyph: 'R' },
-    { kind: 'shield',  weight: 15, label: 'BARRIER',      color: '#5cd6ff', glyph: 'S' },
-    { kind: 'wingmen', weight: 11, label: 'WINGMEN',      color: '#ff9f68', glyph: 'V' },
-    { kind: 'bomb',    weight: 7,  label: 'SMART BOMB',   color: '#ff5a2b', glyph: 'B' },
-    { kind: 'warp',    weight: 7,  label: 'TIME WARP',    color: '#a78bfa', glyph: 'T' },
-    { kind: 'life',    weight: 4,  label: 'EXTRA LIFE',   color: '#ffd166', glyph: '1' }
+    { kind: 'twin',    weight: 16, label: 'TWIN LASER',   color: '#8dff5a', glyph: 'II', weapon: true },
+    { kind: 'spread',  weight: 14, label: 'SPREAD LASER', color: '#4da6ff', glyph: 'W',  weapon: true },
+    { kind: 'pierce',  weight: 11, label: 'HYPER LASER',  color: '#cfe8ff', glyph: 'L',  weapon: true },
+    { kind: 'rapid',   weight: 18, label: 'RAPID FIRE',   color: '#ffc94d', glyph: 'R' },
+    { kind: 'wingmen', weight: 16, label: 'WINGMEN',      color: '#ff9f68', glyph: 'V' },
+    { kind: 'bomb',    weight: 9,  label: 'SMART BOMB',   color: '#ff5a2b', glyph: 'B' },
+    { kind: 'warp',    weight: 8,  label: 'TIME WARP',    color: '#a78bfa', glyph: 'T' },
+    { kind: 'life',    weight: 5,  label: 'EXTRA LIFE',   color: '#ffd166', glyph: '1' }
   ];
 
+  // Power-up durations run longer with a Coolant Loop aboard.
+  const puTime = (secs) => secs * (1 + 0.5 * upLevel('coolant'));
+
   function dropPowerup(x, y) {
+    // A weapon pickup overwrites the one you are holding, so while a weapon
+    // still has real time left on it the draw skips weapons entirely and
+    // hands out something that stacks instead.
+    const armed = player.weapon !== 'single' && player.weaponTime > 5;
     let total = 0;
-    for (const p of POWERUPS) total += p.weight;
-    let roll = Math.random() * total;
-    let chosen = POWERUPS[0];
     for (const p of POWERUPS) {
+      if (armed && p.weapon) continue;
+      total += p.weight;
+    }
+    let roll = Math.random() * total;
+    let chosen = null;
+    for (const p of POWERUPS) {
+      if (armed && p.weapon) continue;
       roll -= p.weight;
       if (roll <= 0) { chosen = p; break; }
+      chosen = p;
     }
     G.powerups.push({ x: x, y: y, vy: 95 * S, def: chosen, t: 0, r: 12 * S });
   }
@@ -1137,13 +1155,12 @@
     Sound.powerup();
     Haptics.powerup();
     switch (def.kind) {
-      case 'twin': setWeapon('twin', 15); break;
-      case 'spread': setWeapon('spread', 15); break;
-      case 'pierce': setWeapon('pierce', 12); break;
-      case 'rapid': player.rapid = 12; break;
-      case 'shield': player.shield = true; break;
-      case 'wingmen': launchWingmen(16); break;
-      case 'warp': G.slow = 6; Sound.tone(760, 0.5, 'sine', 0.06, 180); break;
+      case 'twin': setWeapon('twin', puTime(15)); break;
+      case 'spread': setWeapon('spread', puTime(15)); break;
+      case 'pierce': setWeapon('pierce', puTime(12)); break;
+      case 'rapid': player.rapid = puTime(12); break;
+      case 'wingmen': launchWingmen(puTime(16)); break;
+      case 'warp': G.slow = puTime(6); Sound.tone(760, 0.5, 'sine', 0.06, 180); break;
       case 'bomb': player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); break;
       case 'life': G.lives++; updateLives(); break;
     }
@@ -1605,22 +1622,6 @@
     if (settings.autoFire || input.firing) playerShoot();
 
     // Engine exhaust
-    const nano = upLevel('nanoshield');
-    if (nano > 0) {
-      if (player.shield) {
-        G.shieldTimer = nano === 1 ? 22 : 13;
-      } else {
-        G.shieldTimer -= dt;
-        if (G.shieldTimer <= 0) {
-          player.shield = true;
-          G.shieldTimer = nano === 1 ? 22 : 13;
-          floatText(player.x, player.y - 26 * S, 'BARRIER UP', '#5cd6ff');
-          Sound.powerup();
-          refreshChip();
-        }
-      }
-    }
-
     player.thrust += dt;
     if (player.thrust > 0.03) {
       player.thrust = 0;
@@ -1638,7 +1639,6 @@
     player.x = player.tx = W / 2;
     player.y = player.ty = playerMaxY();
     player.invuln = 2.2;
-    player.shield = false;
     player.weapon = 'single';
     player.weaponTime = 0;
     player.rapid = 0;
@@ -1660,19 +1660,8 @@
       floatText(player.x, player.y - 26 * S, 'WINGMAN DOWN', '#ff8548');
       G.shake = 8;
       Sound.hit();
-      Haptics.shieldHit();
+      Haptics.glanced();
       breakCombo();
-      return;
-    }
-    if (player.shield) {
-      player.shield = false;
-      player.invuln = 1.1;
-      breakCombo();
-      explode(player.x, player.y, '#5cd6ff', 16, 1);
-      floatText(player.x, player.y - 24 * S, 'BARRIER DOWN', '#5cd6ff');
-      Sound.hit();
-      Haptics.shieldHit();
-      refreshChip();
       return;
     }
     player.alive = false;
@@ -1722,8 +1711,8 @@
   const RARITY = {
     common: { label: 'Common', weight: 58 },
     rare:   { label: 'Rare',   weight: 30 },
-    epic:   { label: 'Epic',   weight: 13 },
-    pact:   { label: 'Pact',   weight: 20 }
+    epic:   { label: 'Epic',   weight: 18 },
+    pact:   { label: 'Pact',   weight: 14 }
   };
 
   const UPGRADES = [
@@ -1733,7 +1722,7 @@
     { id: 'salvage',    name: 'Salvage Crew',     cap: 3, rarity: 'common', blurb: 'Raiders drop power-ups far more often.' },
     { id: 'autoloader', name: 'Autoloader',       cap: 4, rarity: 'rare',   blurb: 'Fire 12% faster.' },
     { id: 'bombrack',   name: 'Bomb Rack',        cap: 2, rarity: 'rare',   blurb: 'Carry one more bomb, and take one now.' },
-    { id: 'nanoshield', name: 'Nanoshield',       cap: 2, rarity: 'rare',   blurb: 'Your barrier rebuilds itself over time.' },
+    { id: 'coolant',    name: 'Coolant Loop',     cap: 2, rarity: 'rare',   blurb: 'Power-ups you pick up last 50% longer.' },
     { id: 'tractor',    name: 'Tractor Rig',      cap: 1, rarity: 'rare',   blurb: 'Power-ups drift toward your ship.' },
     { id: 'optics',     name: 'Targeting Optics', cap: 2, rarity: 'epic',   blurb: 'Boss core hits do +1 damage.' },
     { id: 'overdrive',  name: 'Overdrive',        cap: 2, rarity: 'epic',   blurb: 'Combo multiplier caps 2 steps higher.' },
@@ -1988,7 +1977,6 @@
     if (player.rapid > 0) active.push(['rapid', Math.ceil(player.rapid)]);
     if (player.wingmen > 0) active.push(['wingmen', Math.ceil(player.wingmen)]);
     if (G.slow > 0) active.push(['warp', Math.ceil(G.slow)]);
-    if (player.shield) active.push(['shield', 0]);
 
     const key = active.map((a) => a[0] + a[1]).join(',');
     const chip = el('hudPowerup');
@@ -2172,7 +2160,6 @@
     // Cards that pay out, or charge, the moment they are taken.
     if (c.id === 'spare') { G.lives++; updateLives(); }
     if (c.id === 'bombrack') { player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); }
-    if (c.id === 'nanoshield') G.shieldTimer = upLevel('nanoshield') === 1 ? 22 : 13;
     if (c.id === 'glasshull') {
       G.picks++;                       // the extra pick this pact buys
       if (G.lives > 1) { G.lives--; updateLives(); }
@@ -2338,26 +2325,6 @@
       }
     }
 
-    if (player.shield) {
-      ctx.globalCompositeOperation = 'lighter';
-      const a = 0.4 + 0.18 * Math.sin(G.time * 7);
-      const sg = ctx.createRadialGradient(0, 0, 12 * S, 0, 0, 22 * S);
-      sg.addColorStop(0, 'rgba(92,214,255,0)');
-      sg.addColorStop(0.75, 'rgba(92,214,255,' + (a * 0.35) + ')');
-      sg.addColorStop(1, 'rgba(160,235,255,0)');
-      ctx.fillStyle = sg;
-      ctx.beginPath(); ctx.arc(0, 0, 22 * S, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(140,230,255,' + (a + 0.25) + ')';
-      ctx.lineWidth = 1.6 * S;
-      ctx.beginPath();
-      for (let i = 0; i <= 8; i++) {
-        const th = (i / 8) * Math.PI * 2 + G.time * 0.6;
-        ctx.lineTo(Math.cos(th) * 21 * S, Math.sin(th) * 21 * S * 0.92);
-      }
-      ctx.closePath();
-      ctx.stroke();
-      ctx.globalCompositeOperation = 'source-over';
-    }
     ctx.restore();
   }
 
@@ -3398,14 +3365,12 @@
     G.upgrades = {};
     G.offer = null;
     G.taken = [];
-    G.shieldTimer = 0;
     breakCombo();
 
     player.alive = true;
     player.x = player.tx = W / 2;
     player.y = player.ty = playerMaxY();
     player.invuln = 1.6;
-    player.shield = false;
     player.weapon = 'single';
     player.weaponTime = 0;
     player.rapid = 0;
@@ -3433,9 +3398,9 @@
     showScreen(null);
     // Every run opens with a loadout pick, so the build layer is visible
     // from the first wave rather than gated behind the first boss.
-    offerUpgrade(1 + perkLevel('headstart'), startWave, {
+    offerUpgrade(2 + perkLevel('headstart'), startWave, {
       title: 'Launch Loadout',
-      sub: 'Choose your opening upgrade. It lasts the whole run.',
+      sub: 'Choose your opening upgrades. They last the whole run.',
       noPacts: true          // pacts are a mid-run gamble, not a first choice
     });
   }
