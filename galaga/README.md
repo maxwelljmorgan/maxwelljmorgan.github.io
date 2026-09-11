@@ -39,6 +39,19 @@ made from the game loop rather than from a tap may be ignored.
   five. Once the rack is full, extra-life pickups stop dropping and the
   Spare Ship card leaves the deck, so nothing in the game is wasted on a
   reserve you cannot use.
+- **Attrition** — losses carry. Dying no longer clears the screen: only the
+  shots that would kill you on arrival are swept, the rest of the field is
+  as you left it, and you get 1.4s of grace rather than 2.2s. Each ship lost
+  costs a reroll, and once the rerolls are gone it costs a card off the next
+  refit table. There is one emergency hull per run, and only if a boss would
+  otherwise be met on your last ship.
+- **Heat** — a wave that drags starts pushing back. After 24 seconds the
+  raiders begin diving and firing harder, ramping to full pressure over the
+  next 40, with a gauge under the wave number. Camping the last raider is
+  no longer free.
+- **Conditions** — from wave 3 on, most ordinary waves draw a modifier that
+  changes how they have to be fought: ARMOURED, FRENZY, MARKSMEN, BARRAGE or
+  VOLATILE. It is announced before the wave starts.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
@@ -46,12 +59,32 @@ made from the game loop rather than from a tap may be ignored.
   wave 1, so you are always building toward something.
 - **Refit** — beating a boss earns two more picks. Cards stack, last the
   whole run, and drop out of the pool once maxed, so no two runs build the
-  same way. Tap a card or press 1-3; `R` spends a reroll.
+  same way. A full table always seats one pact, so there is always a
+  tempting bad idea in front of you. Tap a card or press 1-3; `R` spends a
+  reroll.
 - **Elites** — raiders ringed in gold take triple damage to kill, are worth
   triple score, and always drop a power-up. Every wave carries at least one.
 - **Power-ups** — scarce by design. Every elite leaves one behind; beyond
   that only red command craft and armoured gun platforms roll for a drop,
   and they rarely do. Losing a ship costs you whatever you were carrying.
+
+## Threat levels
+
+Clearing the campaign unlocks the next threat level, selectable from the
+menu. Each one stacks on everything below it, so mastery has somewhere to go
+once the hangar is stocked.
+
+| Level | Adds |
+| --- | --- |
+| Standard | The campaign as designed |
+| Threat I | Raiders fly, fire and dive 20% faster |
+| Threat II | One fewer ship in reserve |
+| Threat III | No emergency hull before a boss |
+| Threat IV | Bosses carry 25% more armour |
+| Threat V | One more raider dives at a time |
+
+The level a run was flown at is recorded on the game-over screen. Practice
+runs started with `?wave=N` never bank a clear.
 
 ## Capture and rescue
 

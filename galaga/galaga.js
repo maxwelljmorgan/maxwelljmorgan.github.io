@@ -271,8 +271,32 @@
     best: Store.get('best', 0),
     bestWave: Store.get('bestWave', 1),
     scrap: Store.get('scrap', 0),
-    perks: Store.get('perks', {})
+    perks: Store.get('perks', {}),
+    threat: Store.get('threat', 0),      // the level you are flying now
+    cleared: Store.get('cleared', -1)    // highest level whose campaign you finished
   };
+
+  /**
+   * Threat levels. Clearing the campaign at one unlocks the next, and each
+   * stacks on everything below it, so mastery has somewhere to go once the
+   * hangar is stocked.
+   */
+  const THREATS = [
+    { name: 'Standard',  blurb: 'The campaign as designed.' },
+    { name: 'Threat I',  blurb: 'Raiders fly, fire and dive 20% faster.' },
+    { name: 'Threat II', blurb: 'Everything above, and one fewer ship in reserve.' },
+    { name: 'Threat III', blurb: 'Everything above, and no emergency hull before a boss.' },
+    { name: 'Threat IV', blurb: 'Everything above, and bosses carry 25% more armour.' },
+    { name: 'Threat V',  blurb: 'Everything above, and one more raider dives at a time.' }
+  ];
+
+  const threat = () => G.threat || 0;
+  const threatUnlocked = () => Math.min(THREATS.length - 1, records.cleared + 1);
+  const threatSpeed  = () => (threat() >= 1 ? 1.2 : 1);
+  const threatShips  = () => (threat() >= 2 ? 1 : 0);
+  const noRestock    = () => threat() >= 3;
+  const threatBossHp = () => (threat() >= 4 ? 1.25 : 1);
+  const threatDivers = () => (threat() >= 5 ? 1 : 0);
 
   /**
    * Scrap is the only thing that survives a run. It buys permanent perks in
@@ -407,6 +431,11 @@
     comboTimer: 0,
     lastMult: 1,
     conting: false,             // Contingency perk: one free hull this run
+    mod: null,                  // this wave's condition, if it drew one
+    threat: 0,                  // ascension level this run is flying
+    restocked: false,           // the one emergency hull, already spent?
+    waveTime: 0,                // seconds this wave has been running
+    thinDraw: 0,                // refit cards forfeited by losing ships
     captive: null,              // your ship, in enemy hands
     bonus: null,                // challenging-stage scoring
     killcam: null,              // post-mortem beat naming what hit you
@@ -605,23 +634,57 @@
 
   // The 12-wave campaign. After wave 12 it loops with tougher numbers.
   const WAVES = [
-    { name: 'First Contact', rows: ['grunt', 'grunt'], cols: 8, dive: [2.6, 3.6], divers: 1, bspd: 1.00, snipe: 0 },
-    { name: 'Swarm', rows: ['wasp', 'grunt', 'grunt'], cols: 8, dive: [2.2, 3.2], divers: 1, bspd: 1.02, snipe: 7.0 },
-    { name: 'Gold Command', rows: ['commander', 'wasp', 'grunt', 'grunt'], cols: 8, dive: [2.0, 2.9], divers: 2, bspd: 1.05, snipe: 5.5 },
+    { name: 'First Contact', rows: ['grunt', 'grunt'], cols: 8, dive: [2.1, 2.9], divers: 1, bspd: 1.00, snipe: 5.0 },
+    { name: 'Swarm', rows: ['wasp', 'grunt', 'grunt'], cols: 8, dive: [1.8, 2.5], divers: 1, bspd: 1.04, snipe: 3.8 },
+    { name: 'Gold Command', rows: ['commander', 'wasp', 'grunt', 'grunt'], cols: 8, dive: [1.7, 2.3], divers: 2, bspd: 1.08, snipe: 3.0 },
     { name: 'The Sentinel', boss: 'sentinel' },
-    { name: 'Crossfire', rows: ['wasp', 'wasp', 'grunt', 'grunt'], cols: 9, dive: [1.8, 2.6], divers: 2, bspd: 1.08, snipe: 4.5 },
-    { name: 'Gun Platforms', rows: ['turret', 'commander', 'wasp', 'grunt'], cols: 9, dive: [1.7, 2.5], divers: 2, bspd: 1.10, snipe: 4.0 },
-    { name: 'Hornets', rows: ['wasp', 'wasp', 'commander', 'wasp', 'grunt'], cols: 9, dive: [1.5, 2.2], divers: 2, bspd: 1.13, snipe: 3.6 },
+    { name: 'Crossfire', rows: ['wasp', 'wasp', 'grunt', 'grunt'], cols: 9, dive: [1.5, 2.0], divers: 2, bspd: 1.12, snipe: 2.4 },
+    { name: 'Gun Platforms', rows: ['turret', 'commander', 'wasp', 'grunt'], cols: 9, dive: [1.4, 1.9], divers: 2, bspd: 1.15, snipe: 1.9 },
+    { name: 'Hornets', rows: ['wasp', 'wasp', 'commander', 'wasp', 'grunt'], cols: 9, dive: [1.3, 1.8], divers: 3, bspd: 1.19, snipe: 1.7 },
     { name: 'The Hive Queen', boss: 'queen' },
-    { name: 'Iron Curtain', rows: ['turret', 'turret', 'wasp', 'commander', 'grunt'], cols: 9, dive: [1.4, 2.1], divers: 3, bspd: 1.16, snipe: 3.2 },
-    { name: 'Blitz', rows: ['wasp', 'wasp', 'wasp', 'commander', 'grunt'], cols: 10, dive: [1.2, 1.9], divers: 3, bspd: 1.20, snipe: 3.0 },
-    { name: 'Last Stand', rows: ['commander', 'turret', 'wasp', 'wasp', 'grunt'], cols: 10, dive: [1.1, 1.7], divers: 3, bspd: 1.24, snipe: 2.6 },
+    { name: 'Iron Curtain', rows: ['turret', 'turret', 'wasp', 'commander', 'grunt'], cols: 9, dive: [1.15, 1.45], divers: 3, bspd: 1.23, snipe: 1.5 },
+    { name: 'Blitz', rows: ['wasp', 'wasp', 'wasp', 'commander', 'grunt'], cols: 10, dive: [1.0, 1.4], divers: 4, bspd: 1.28, snipe: 1.1 },
+    { name: 'Last Stand', rows: ['commander', 'turret', 'wasp', 'wasp', 'grunt'], cols: 10, dive: [0.85, 1.1], divers: 4, bspd: 1.33, snipe: 0.95 },
     { name: 'The Dreadnought', boss: 'dread' }
   ];
 
+  /**
+   * Wave modifiers. From wave 3 on, most ordinary waves draw a condition that
+   * changes how they have to be fought, so two runs through wave 9 are not the
+   * same wave 9.
+   */
+  const MODIFIERS = [
+    { id: 'armoured', name: 'ARMOURED',  blurb: 'every raider takes one more hit' },
+    { id: 'frenzy',   name: 'FRENZY',    blurb: 'they dive twice as often' },
+    { id: 'marksmen', name: 'MARKSMEN',  blurb: 'every shot is aimed at you' },
+    { id: 'barrage',  name: 'BARRAGE',   blurb: 'the formation fires twice as fast' },
+    { id: 'volatile', name: 'VOLATILE',  blurb: 'raiders burst on death' }
+  ];
+  const hasMod = (id) => !!G.mod && G.mod.id === id;
+  const modDive   = () => (hasMod('frenzy') ? 2 : 1);
+  const modFire   = () => (hasMod('barrage') ? 2 : 1);
+  const modDivers = () => (hasMod('frenzy') ? 1 : 0);
+
+  /** Rolls this wave's condition; boss and challenging stages stay clean. */
+  function rollModifier(def) {
+    if (def.boss || G.wave < 3) return null;
+    const chance = 0.35 + 0.05 * Math.min(6, G.wave - 3) + 0.1 * (G.loop - 1);
+    return Math.random() < chance ? pick(MODIFIERS) : null;
+  }
+
   const waveDef = () => WAVES[(G.wave - 1) % WAVES.length];
   /** Every campaign loop makes enemies quicker, deadlier and tougher. */
-  const loopMul = () => 1 + 0.16 * (G.loop - 1);
+  const loopMul = () => (1 + 0.26 * (G.loop - 1)) * threatSpeed();
+
+  /**
+   * Heat. A wave that drags starts pushing back: after a grace period the
+   * raiders dive and fire harder, so parking under the formation and farming
+   * the last few stops being free.
+   */
+  const HEAT_GRACE = 24;      // seconds before the screws start turning
+  const HEAT_RAMP = 40;       // seconds from there to full heat
+  const heat = () => clamp((G.waveTime - HEAT_GRACE) / HEAT_RAMP, 0, 1);
+  const heatMul = () => 1 + 0.9 * heat();
 
   const colWidth = () => Math.min(W / (G.cols + 1.35), 48 * S);
   const gridWidth = () => colWidth() * (G.cols - 1);
@@ -805,7 +868,8 @@
         });
       }
     }
-    G.diveTimer = rand(2.4, 3.4);
+    const dr = def.dive || [2, 3];
+    G.diveTimer = rand(dr[0], dr[1]) + 0.9;   // one beat to read the formation
     G.snipeTimer = def.snipe || 0;
   }
 
@@ -817,6 +881,7 @@
       G.spawnQueue.splice(i, 1);
       const e = makeEnemy(s.type, s.row, s.col);
       if (s.elite) { e.elite = true; e.hp = e.def.hp * 3; }
+      if (hasMod('armoured') && !s.bonusPath) e.hp += 1;
       if (s.bonusPath) {
         // Challenging-stage raiders: harmless, and they just fly the set piece.
         e.bonus = true;
@@ -995,23 +1060,33 @@
         if (ready.length) {
           // Prefer the bottom rows, the way the arcade original peels them off.
           ready.sort((a, b) => b.row - a.row || Math.random() - 0.5);
-          const n = Math.min(randInt(1, (def.divers || 1) + upLevel('swarm')), ready.length);
+          const n = Math.min(randInt(1, (def.divers || 1) + upLevel('swarm') + threatDivers() + modDivers()), ready.length);
           for (let k = 0; k < n; k++) {
             const target = ready[Math.min(k, ready.length - 1)];
             setTimeout(() => { if (G.state === 'play' && G.enemies.indexOf(target) >= 0) startDive(target); }, k * 160);
           }
         }
         const range = def.dive || [2, 3];
-        G.diveTimer = rand(range[0], range[1]) / loopMul();
+        G.diveTimer = rand(range[0], range[1]) / loopMul() / heatMul() / modDive();
       }
 
       // Formation snipers plink downwards from later waves on.
       if (def.snipe) {
         G.snipeTimer -= dt;
         if (G.snipeTimer <= 0) {
-          G.snipeTimer = def.snipe / loopMul() / enemyFireMul();
+          G.snipeTimer = def.snipe / loopMul() / enemyFireMul() / heatMul() / modFire();
           const shooters = G.enemies.filter((e) => e.mode === 'formation');
-          if (shooters.length) enemyShoot(pick(shooters), bulletMul, Math.random() < 0.4);
+          if (shooters.length) {
+            const e = pick(shooters);
+            const aimed = Math.random() < (hasMod('marksmen') ? 1 : 0.4);
+            enemyShoot(e, bulletMul * (1 + 0.25 * heat()), aimed);
+            // Gun platforms never dive, so armour used to *lower* the pressure
+            // of a wave. They answer with a volley instead.
+            if (e.def.static) {
+              setTimeout(() => { if (G.state === 'play' && G.enemies.indexOf(e) >= 0) enemyShoot(e, bulletMul, false); }, 130);
+              setTimeout(() => { if (G.state === 'play' && G.enemies.indexOf(e) >= 0) enemyShoot(e, bulletMul, aimed); }, 260);
+            }
+          }
         }
       }
     }
@@ -1282,7 +1357,7 @@
 
   function spawnBoss(kind) {
     const d = BOSS_DEFS[kind];
-    const maxHp = Math.round(d.hp * (1 + 0.42 * (G.loop - 1)));
+    const maxHp = Math.round(d.hp * (1 + 0.55 * (G.loop - 1)) * threatBossHp());
     G.boss = {
       kind: kind, def: d, name: d.name,
       hp: maxHp, maxHp: maxHp,
@@ -1680,7 +1755,7 @@
     player.alive = true;
     player.x = player.tx = W / 2;
     player.y = player.ty = playerMaxY();
-    player.invuln = 2.2 + 0.8 * perkLevel('hull');
+    player.invuln = 1.4 + 0.8 * perkLevel('hull');
     player.weapon = 'single';
     player.weaponTime = 0;
     player.rapid = 0;
@@ -1688,7 +1763,14 @@
     player.drones = [];
     player.dual = false;
     player.cool = 0;
-    G.eBullets.length = 0;
+    // Only the shots that would kill you the moment you appear are swept.
+    // Wiping the whole screen made dying the strongest defensive move in the
+    // game; now the rest of the field is exactly as dangerous as you left it.
+    const safe = 95 * S;
+    for (let i = G.eBullets.length - 1; i >= 0; i--) {
+      const b = G.eBullets[i];
+      if (hypot(b.x - player.x, b.y - player.y) < safe) G.eBullets.splice(i, 1);
+    }
     refreshChip();
   }
 
@@ -1717,6 +1799,16 @@
       floatText(player.x, player.y - 40 * S, 'CONTINGENCY', '#8dff5a');
     } else {
       G.lives--;
+      // Attrition: a lost ship costs the run a reroll, and once the rerolls
+      // are gone it starts costing refit cards instead. A run that is going
+      // badly gets worse choices, which is the whole point.
+      if (G.rerolls > 0) {
+        G.rerolls--;
+        floatText(player.x, player.y - 52 * S, 'REROLL LOST', '#ff8548');
+      } else if (G.thinDraw < 1) {
+        G.thinDraw++;
+        floatText(player.x, player.y - 52 * S, 'SALVAGE THINNING', '#ff8548');
+      }
     }
     updateLives();
     explode(player.x, player.y, '#9fd8ff', 34, 1.6);
@@ -1745,6 +1837,13 @@
     if (e.elite || (e.def.drop && Math.random() < e.def.drop * dropMul())) {
       dropPowerup(e.x, e.y);
     }
+    if (hasMod('volatile') && !e.bonus) {
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 + rand(0, 1);
+        G.eBullets.push({ x: e.x, y: e.y, vx: Math.cos(a) * 150 * S, vy: Math.sin(a) * 150 * S,
+                          r: 4 * S, color: '#ff5a2b', life: 2.4 });
+      }
+    }
     Sound.kill();
     G.enemies.splice(index, 1);
   }
@@ -1759,7 +1858,7 @@
     common: { label: 'Common', weight: 58 },
     rare:   { label: 'Rare',   weight: 30 },
     epic:   { label: 'Epic',   weight: 18 },
-    pact:   { label: 'Pact',   weight: 14 }
+    pact:   { label: 'Pact',   weight: 20 }
   };
 
   const UPGRADES = [
@@ -2054,6 +2153,9 @@
 
   function startWave() {
     const def = waveDef();
+    G.mod = rollModifier(def);
+    G.waveTime = 0;
+    hideHeat();
     G.bossDefeated = false;
     G.bossWreck = null;
     G.enemies.length = 0;
@@ -2071,12 +2173,14 @@
       Sound.powerup();
     }
 
-    // Nobody should meet a boss on their last ship because the run-up went
-    // badly. Reserves are topped up to three, and never reduced.
-    if (def.boss && G.lives < 3) {
-      G.lives = 3;
+    // One emergency hull a run, and only if a boss would otherwise be met on
+    // the very last ship. Topping up to three before every boss used to erase
+    // every loss taken in the run-up, which is the opposite of attrition.
+    if (def.boss && !G.restocked && G.lives <= 1 && !noRestock()) {
+      G.restocked = true;
+      G.lives = 2;
       updateLives();
-      floatText(player.x, player.y - 34 * S, 'RESERVES RESTOCKED', '#5cd6ff');
+      floatText(player.x, player.y - 34 * S, 'EMERGENCY HULL', '#5cd6ff');
       Sound.powerup();
     }
 
@@ -2085,11 +2189,16 @@
       Store.set('bestWave', G.wave);
     }
 
-    const sub = def.name + (G.loop > 1 ? ' · Loop ' + G.loop : '');
+    let sub = def.name + (G.loop > 1 ? ' · Loop ' + G.loop : '');
+    if (G.mod) sub += ' · ' + G.mod.name;
     if (def.boss) {
       announce('WARNING', sub, true);
       Sound.warn();
       G.introTimer = 2.6;
+    } else if (G.mod) {
+      announce(G.mod.name, G.mod.blurb, true);
+      Sound.warn();
+      G.introTimer = 2.3;
     } else {
       announce('WAVE ' + G.wave, sub, false);
       Sound.levelUp();
@@ -2124,6 +2233,14 @@
                                          !(noPacts && c.rarity === 'pact') &&
                                          !(c.id === 'spare' && livesFull()));
     const taken = [];
+    // Outside the opening loadout, a full table always seats one pact: there
+    // should always be a tempting bad idea in front of you. A table already
+    // thinned by losing ships is spared — two cards and one of them a pact
+    // would not be a choice.
+    if (!noPacts && n >= 3) {
+      const pacts = eligible.filter((c) => c.rarity === 'pact');
+      if (pacts.length) taken.push(pick(pacts));
+    }
     while (taken.length < n) {
       const avail = eligible.filter((c) => taken.indexOf(c) < 0);
       if (!avail.length) break;
@@ -2180,7 +2297,8 @@
     // A run that just lost its last ship goes to the game-over screen instead.
     if (!player.alive && G.lives <= 0) { G.refitNext(); return; }
     G.picks = picks;
-    G.offer = drawOffer(3, G.noPacts);
+    // Ships lost with no reroll left cost cards off the table.
+    G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts);
     if (!G.offer.length) { G.refitNext(); return; }
 
     renderOffer();
@@ -2193,7 +2311,7 @@
   function rerollOffer() {
     if (G.state !== 'upgrade' || G.rerolls <= 0) return;
     G.rerolls--;
-    G.offer = drawOffer(3, G.noPacts);
+    G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts);
     Sound.powerup();
     renderOffer();
   }
@@ -2216,10 +2334,11 @@
     Sound.levelUp();
 
     if (G.picks > 0) {
-      G.offer = drawOffer(3, G.noPacts);
+      G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts);
       if (G.offer.length) { renderOffer(); return; }
     }
     G.offer = null;
+    G.thinDraw = 0;          // the refit clears the backlog of lost ships
     showScreen(null);
     updateBombs();
     G.refitNext();
@@ -2227,7 +2346,14 @@
 
   function advanceWave() {
     G.wave++;
-    if ((G.wave - 1) % WAVES.length === 0) G.loop++;
+    if ((G.wave - 1) % WAVES.length === 0) {
+      G.loop++;
+      // A cleared campaign banks this threat level and opens the next one.
+      if (!G.practice && G.threat > records.cleared) {
+        records.cleared = G.threat;
+        Store.set('cleared', records.cleared);
+      }
+    }
     startWave();
   }
 
@@ -3344,6 +3470,9 @@
     }
 
     // --- state 'play' ---
+    // The heat clock only runs while a wave is actually being fought.
+    G.waveTime += gdt;
+    updateHeatHud();
     updateSpawnQueue(edt);
     updateEnemies(edt);
     updateBoss(edt);
@@ -3395,7 +3524,12 @@
     G.score = 0;
     G.wave = start;
     G.loop = 1 + Math.floor((start - 1) / WAVES.length);
-    G.lives = Math.min(LIFE_CAP, 3 + perkLevel('reserve'));
+    G.threat = clamp(records.threat, 0, threatUnlocked());
+    G.restocked = false;
+    G.thinDraw = 0;
+    G.waveTime = 0;
+    G.mod = null;
+    G.lives = Math.max(1, Math.min(LIFE_CAP, 3 + perkLevel('reserve') - threatShips()));
     G.rerolls = 1 + perkLevel('dice');
     G.taken = [];
     G.startBest = records.best;
@@ -3491,6 +3625,7 @@
 
   function quitToMenu() {
     G.state = 'menu';
+    hideHeat();
     G.offer = null;
     G.boss = null;
     G.enemies.length = 0;
@@ -3509,6 +3644,7 @@
 
   function gameOver() {
     G.state = 'over';
+    hideHeat();
     G.boss = null;
     breakCombo();
     updateComboHud();
@@ -3517,7 +3653,8 @@
     hideAnnounce();
     saveRecords();
     el('finalScore').textContent = G.score.toLocaleString();
-    el('finalSub').textContent = 'Wave ' + G.wave + (G.loop > 1 ? ' · Loop ' + G.loop : '');
+    el('finalSub').textContent = 'Wave ' + G.wave + (G.loop > 1 ? ' · Loop ' + G.loop : '') +
+      (G.threat > 0 ? ' · ' + THREATS[G.threat].name : '');
     const earned = G.practice ? 0 : scrapEarned();
     if (earned) {
       records.scrap += earned;
@@ -3590,7 +3727,48 @@
     el('menuScrap').textContent = records.scrap.toLocaleString();
     el('menuBest').textContent = records.best.toLocaleString();
     el('menuWave').textContent = records.bestWave;
+    renderThreatPick();
   }
+
+  /**
+   * The threat picker only appears once the campaign has been cleared at
+   * least once, so it never clutters a first run.
+   */
+  function renderThreatPick() {
+    const wrap = el('threatPick');
+    const top = threatUnlocked();
+    wrap.classList.toggle('hidden', records.cleared < 0);
+    if (records.cleared < 0) return;
+    const lvl = clamp(records.threat, 0, top);
+    if (lvl !== records.threat) { records.threat = lvl; Store.set('threat', lvl); }
+    el('threatName').textContent = THREATS[lvl].name;
+    el('threatBlurb').textContent = THREATS[lvl].blurb +
+      (lvl === top && top < THREATS.length - 1 ? ' Clear the campaign here to unlock the next.' : '');
+    el('threatDown').disabled = lvl <= 0;
+    el('threatUp').disabled = lvl >= top;
+  }
+
+  function stepThreat(d) {
+    const lvl = clamp(records.threat + d, 0, threatUnlocked());
+    if (lvl === records.threat) return;
+    records.threat = lvl;
+    Store.set('threat', lvl);
+    Sound.powerup();
+    renderThreatPick();
+  }
+
+  /** Paints the wave-timer pressure gauge, which hides until it starts to bite. */
+  let heatShown = -1;
+  function updateHeatHud() {
+    const pct = Math.round(heat() * 100);
+    if (pct === heatShown) return;          // every frame calls this; most are no-ops
+    heatShown = pct;
+    const wrap = el('heatWrap');
+    wrap.classList.toggle('hidden', pct <= 0);
+    wrap.classList.toggle('full', pct > 75);
+    el('heatFill').style.width = pct + '%';
+  }
+  function hideHeat() { heatShown = -1; el('heatWrap').classList.add('hidden'); }
 
   // =========================================================
   // 16. UI wiring
@@ -3637,6 +3815,8 @@
 
   el('btnHow').addEventListener('click', () => showScreen('howto'));
   el('btnHangar').addEventListener('click', () => { renderHangar(); showScreen('hangar'); });
+  el('threatUp').addEventListener('click', () => stepThreat(1));
+  el('threatDown').addEventListener('click', () => stepThreat(-1));
   el('btnHangarBack').addEventListener('click', () => showScreen('menu'));
   el('rerollBtn').addEventListener('click', rerollOffer);
   el('btnHowBack').addEventListener('click', () => showScreen('menu'));
