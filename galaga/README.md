@@ -17,8 +17,13 @@ dependencies — open `index.html` and play.
   what destroyed you: ramming raiders, raider or boss fire, a homing
   missile, the beam, or the boss itself. Deaths should teach something.
 - **Pause** — lists the cards you are carrying, and toggles auto-fire,
-  sound and rumble (short vibration on hits, bombs and boss kills, where
-  the device supports it).
+  sound and rumble.
+
+Rumble uses the Vibration API, which Android Chrome supports and Safari
+never shipped, so it does nothing on iPhone. Where the browser has no
+vibration support the toggle reads `Rumble: N/A` and is disabled rather
+than claiming to be on. Even on browsers that nominally support it, calls
+made from the game loop rather than from a tap may be ignored.
 - **Ships** — you start with three, gain one on the run-up to every boss
   (waves 3, 7, 11), and your reserve is topped up to three when a boss wave
   begins, so a bad run-up never puts you into a boss on your last ship.

@@ -214,9 +214,12 @@
    */
   const Haptics = {
     on: true,
+    // Safari has never shipped the Vibration API, and Firefox dropped it, so
+    // plenty of phones land here with nothing to buzz.
+    supported: typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function',
     buzz(pattern) {
-      if (!this.on || !navigator.vibrate) return;
-      try { navigator.vibrate(pattern); } catch (e) { /* blocked */ }
+      if (!this.on || !this.supported) return;
+      try { navigator.vibrate(pattern); } catch (e) { /* refused by the browser */ }
     },
     shieldHit() { this.buzz(35); },
     shipLost() { this.buzz([90, 50, 140]); },
@@ -3232,13 +3235,26 @@
   // 16. UI wiring
   // =========================================================
 
-  function bindToggle(id, key, label, onChange) {
+  /**
+   * `available` lets a toggle report that the device cannot do the thing at
+   * all, rather than claiming to be ON while doing nothing.
+   */
+  function bindToggle(id, key, label, onChange, available) {
     const btn = el(id);
+    const usable = available ? available() : true;
     const paint = () => {
+      if (!usable) {
+        btn.dataset.on = 'false';
+        btn.disabled = true;
+        btn.textContent = label + ': N/A';
+        btn.title = 'This browser has no vibration support';
+        return;
+      }
       btn.dataset.on = String(settings[key]);
       btn.textContent = label + ': ' + (settings[key] ? 'ON' : 'OFF');
     };
     btn.addEventListener('click', () => {
+      if (!usable) return;
       settings[key] = !settings[key];
       Store.set(key, settings[key]);
       if (onChange) onChange();
@@ -3268,8 +3284,10 @@
   togglePainters.push(bindToggle('btnAuto2', 'autoFire', 'Auto-fire'));
   togglePainters.push(bindToggle('btnSound', 'sound', 'Sound', () => { Sound.on = settings.sound; if (settings.sound) Sound.init(); }));
   togglePainters.push(bindToggle('btnSound2', 'sound', 'Sound', () => { Sound.on = settings.sound; if (settings.sound) Sound.init(); }));
-  togglePainters.push(bindToggle('btnHaptics', 'haptics', 'Rumble', () => { Haptics.on = settings.haptics; Haptics.buzz(20); }));
-  togglePainters.push(bindToggle('btnHaptics2', 'haptics', 'Rumble', () => { Haptics.on = settings.haptics; Haptics.buzz(20); }));
+  togglePainters.push(bindToggle('btnHaptics', 'haptics', 'Rumble',
+    () => { Haptics.on = settings.haptics; Haptics.buzz(20); }, () => Haptics.supported));
+  togglePainters.push(bindToggle('btnHaptics2', 'haptics', 'Rumble',
+    () => { Haptics.on = settings.haptics; Haptics.buzz(20); }, () => Haptics.supported));
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) pauseGame();

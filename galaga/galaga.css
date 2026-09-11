@@ -337,6 +337,7 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
   cursor: pointer;
 }
 .toggle[data-on="true"] { color: var(--accent); border-color: rgba(77, 166, 255, .55); background: rgba(77, 166, 255, .12); }
+.toggle:disabled { opacity: .4; cursor: default; }
 
 /* --------------------- Between-wave refit --------------------- */
 .upgrade-panel { max-width: 420px; }
