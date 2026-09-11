@@ -122,6 +122,20 @@
     buildStars();
   }
 
+  /**
+   * A rescued fighter docks alongside, so the ship becomes a pair that
+   * straddles the aim point. Everything that touches the ship — firing,
+   * drawing, collisions, pickups — works through these offsets.
+   */
+  const shipOffsets = () => (player.dual ? [-9 * S, 9 * S] : [0]);
+
+  function shipHit(x, y, r) {
+    for (const ox of shipOffsets()) {
+      if (hypot(x - (player.x + ox), y - player.y) < r) return true;
+    }
+    return false;
+  }
+
   // The ship flies in a band along the bottom, well clear of the formation.
   const playerMaxY = () => H - 64 * S;
   const playerMinY = () => Math.max(H * 0.5, H - 300 * S);
@@ -368,6 +382,8 @@
     combo: 0,                   // kills chained inside the combo window
     comboTimer: 0,
     lastMult: 1,
+    captive: null,              // your ship, in enemy hands
+    bonus: null,                // challenging-stage scoring
     killcam: null,              // post-mortem beat naming what hit you
     shock: null,                // smart-bomb blast wave
     slow: 0,                    // time-warp timer
@@ -388,6 +404,7 @@
     wingmen: 0,
     drones: [],
     bombs: 0,                   // smart bombs held, spent on demand
+    dual: false,                // flying as a recovered pair
     deadTimer: 0,
     thrust: 0
   };
@@ -430,7 +447,8 @@
   }
 
   canvas.addEventListener('pointerdown', (e) => {
-    if (G.state !== 'play' && G.state !== 'intro' && G.state !== 'clear') return;
+    if (G.state !== 'play' && G.state !== 'intro' && G.state !== 'clear' &&
+        G.state !== 'bonus') return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
     const p = pointerPos(e);
@@ -627,6 +645,93 @@
     return makePath(wp, 12);
   }
 
+  /**
+   * Challenging stages: a breather between waves where nothing shoots back
+   * and nothing can hit you. Raiders fly a set piece and you try to clear
+   * the lot for a perfect bonus.
+   */
+  const BONUS_PATTERNS = [
+    // Twin loops entering from both top corners.
+    function twinLoops(side) {
+      const cx = W / 2;
+      return [
+        { x: cx + side * W * 0.45, y: -60 * S },
+        { x: cx + side * W * 0.42, y: H * 0.22 },
+        { x: cx + side * W * 0.10, y: H * 0.36 },
+        { x: cx - side * W * 0.16, y: H * 0.28 },
+        { x: cx - side * W * 0.10, y: H * 0.14 },
+        { x: cx + side * W * 0.18, y: H * 0.20 },
+        { x: cx + side * W * 0.30, y: H * 0.45 },
+        { x: cx - side * W * 0.30, y: H * 0.62 },
+        { x: cx - side * W * 0.40, y: H + 80 * S }
+      ];
+    },
+    // A single file snaking down the screen.
+    function serpentine(side) {
+      const cx = W / 2;
+      const pts = [{ x: cx + side * W * 0.38, y: -60 * S }];
+      for (let i = 0; i < 5; i++) {
+        pts.push({ x: cx + side * (i % 2 ? 1 : -1) * W * 0.34, y: H * (0.14 + i * 0.15) });
+      }
+      pts.push({ x: cx - side * W * 0.20, y: H + 80 * S });
+      return pts;
+    },
+    // Two streams crossing through the middle.
+    function crossing(side) {
+      const cx = W / 2;
+      return [
+        { x: cx + side * W * 0.5, y: -60 * S },
+        { x: cx + side * W * 0.34, y: H * 0.2 },
+        { x: cx, y: H * 0.4 },
+        { x: cx - side * W * 0.34, y: H * 0.6 },
+        { x: cx - side * W * 0.46, y: H + 80 * S }
+      ];
+    }
+  ];
+
+  const isBonusWave = (w) => w >= 3 && (w - 3) % 4 === 0;
+
+  function startBonus() {
+    G.enemies.length = 0;
+    G.spawnQueue.length = 0;
+    G.eBullets.length = 0;
+    G.boss = null;
+
+    const make = BONUS_PATTERNS[Math.floor(Math.random() * BONUS_PATTERNS.length)];
+    const types = ['grunt', 'wasp', 'commander'];
+    let total = 0;
+    for (const side of [-1, 1]) {
+      const path = makePath(make(side), 14);
+      for (let i = 0; i < 8; i++) {
+        G.spawnQueue.push({
+          delay: i * 0.28 + (side < 0 ? 0 : 0.14),
+          type: types[i % types.length],
+          row: 0, col: 0, bonusPath: path
+        });
+        total++;
+      }
+    }
+    G.bonus = { killed: 0, total: total, timer: 16 };
+    announce('CHALLENGING STAGE', 'they do not shoot back');
+    Sound.levelUp();
+    G.state = 'bonus';
+  }
+
+  function endBonus() {
+    const perfect = G.bonus.killed >= G.bonus.total;
+    const bonus = perfect ? 5000 * G.loop : G.bonus.killed * 100 * G.loop;
+    addScore(bonus);
+    announce(perfect ? 'PERFECT!' : G.bonus.killed + ' / ' + G.bonus.total,
+             '+' + bonus.toLocaleString());
+    if (perfect) { Sound.levelUp(); Haptics.waveClear(); }
+    G.bonus = null;
+    G.enemies.length = 0;
+    G.spawnQueue.length = 0;
+    G.waveClearTimer = 2.2;
+    G.state = 'clear';
+    G.afterClear = advanceWave;
+  }
+
   function buildWave(def) {
     G.enemies.length = 0;
     G.spawnQueue.length = 0;
@@ -671,6 +776,20 @@
       G.spawnQueue.splice(i, 1);
       const e = makeEnemy(s.type, s.row, s.col);
       if (s.elite) { e.elite = true; e.hp = e.def.hp * 3; }
+      if (s.bonusPath) {
+        // Challenging-stage raiders: harmless, and they just fly the set piece.
+        e.bonus = true;
+        e.hp = 1;
+        e.path = s.bonusPath;
+        e.d = 0;
+        e.speed = 230 * S;
+        e.mode = 'path';
+        e.onArrive = 'gone';
+        e.x = e.path.pts[0].x;
+        e.y = e.path.pts[0].y;
+        G.enemies.push(e);
+        continue;
+      }
       const slot = slotPos(s.row, s.col);
       e.path = entryPath(s.style, s.side, { x: slot.x, y: slot.y });
       e.d = 0;
@@ -697,6 +816,16 @@
     ], 12);
   }
 
+  /** Climb back to formation from wherever the craft currently is. */
+  function retreatPath(e) {
+    const slot = slotPos(e.row, e.col);
+    return makePath([
+      { x: e.x, y: e.y },
+      { x: (e.x + slot.x) / 2, y: (e.y + slot.y) / 2 - H * 0.08 },
+      { x: slot.x, y: slot.y }
+    ], 12);
+  }
+
   function returnPath(e) {
     const slot = slotPos(e.row, e.col);
     const startX = clamp(slot.x + rand(-0.16, 0.16) * W, 20 * S, W - 20 * S);
@@ -707,8 +836,32 @@
     ], 12);
   }
 
+  /** Conditions for a commander to try for a capture rather than a dive. */
+  function wantsCapture(e) {
+    return e.type === 'commander' && !G.captive && !player.dual &&
+           player.alive && G.lives > 1 && Math.random() < 0.35;
+  }
+
+  /** A commander drops into a hover above the ship and opens a tractor beam. */
+  function startCapture(e) {
+    const tx = clamp(player.x, 40 * S, W - 40 * S);
+    e.mode = 'path';
+    e.path = makePath([
+      { x: e.x, y: e.y },
+      { x: (e.x + tx) / 2, y: H * 0.2 },
+      { x: tx, y: H * 0.34 }
+    ], 12);
+    e.d = 0;
+    e.speed = 210 * S * loopMul();
+    e.onArrive = 'hover';
+    e.capturing = true;
+    e.inFormation = false;
+    Sound.warn();
+  }
+
   function startDive(e) {
     if (e.def.static || e.mode !== 'formation') return;
+    if (wantsCapture(e)) { startCapture(e); return; }
     e.mode = 'path';
     e.path = divePath(e);
     e.d = 0;
@@ -728,6 +881,24 @@
       e.t += dt;
       if (e.flash > 0) e.flash -= dt;
 
+      if (e.mode === 'hover') {
+        e.hoverT -= dt;
+        // The beam reaches straight down; stray into it and you are taken.
+        if (player.alive && player.invuln <= 0 && !G.captive &&
+            player.y > e.y && Math.abs(player.x - e.x) < CAPTURE_HALF_W * S) {
+          capturePlayer(e);
+        }
+        if (e.hoverT <= 0) {
+          e.capturing = false;
+          e.path = retreatPath(e);
+          e.d = 0;
+          e.speed = 320 * S * loopMul();
+          e.mode = 'path';
+          e.onArrive = 'formation';
+        }
+        continue;
+      }
+
       if (e.mode === 'path') {
         e.d += e.speed * dt;
         const p = pathAt(e.path, e.d);
@@ -736,7 +907,7 @@
         e.angle = p.a - Math.PI / 2;
 
         // Diving enemies take pot shots at the player.
-        if ((e.onArrive === 'return' || e.onArrive === 'gone') && e.y < H * 0.86) {
+        if (!e.bonus && (e.onArrive === 'return' || e.onArrive === 'gone') && e.y < H * 0.86) {
           e.fireTimer -= dt;
           if (e.fireTimer <= 0) {
             e.fireTimer = rand(0.5, 1.3) / e.def.aim / enemyFireMul();
@@ -745,7 +916,10 @@
         }
 
         if (e.d >= e.path.len) {
-          if (e.onArrive === 'gone') {
+          if (e.onArrive === 'hover') {
+            e.mode = 'hover';
+            e.hoverT = 1.7;
+          } else if (e.onArrive === 'gone') {
             G.enemies.splice(i, 1);
           } else if (e.onArrive === 'formation') {
             const slot = slotPos(e.row, e.col);
@@ -821,25 +995,27 @@
                   / hot / (upLevel('overheat') ? 1.3 : 1);
     const y = player.y - 13 * S;
 
-    if (w === 'twin') {
-      bolt(player.x - 7 * S, y, 0, -speed);
-      bolt(player.x + 7 * S, y, 0, -speed);
-    } else if (w === 'spread') {
-      for (const a of [-0.28, 0, 0.28]) {
-        bolt(player.x, y, Math.sin(a) * speed, -Math.cos(a) * speed);
+    for (const ox of shipOffsets()) {
+      const px = player.x + ox;
+      if (w === 'twin') {
+        bolt(px - 7 * S, y, 0, -speed);
+        bolt(px + 7 * S, y, 0, -speed);
+      } else if (w === 'spread') {
+        for (const a of [-0.28, 0, 0.28]) {
+          bolt(px, y, Math.sin(a) * speed, -Math.cos(a) * speed);
+        }
+      } else if (w === 'pierce') {
+        G.pBullets.push({
+          x: px, y: y, vx: 0, vy: -speed * 1.15,
+          r: 5.5 * S, pierce: true, hit: []
+        });
+      } else {
+        bolt(px, y, 0, -speed);
       }
-    } else if (w === 'pierce') {
-      G.pBullets.push({
-        x: player.x, y: y, vx: 0, vy: -speed * 1.15,
-        r: 5.5 * S, pierce: true, hit: []
-      });
-    } else {
-      bolt(player.x, y, 0, -speed);
-    }
-
-    if (upLevel('twinmount')) {
-      bolt(player.x - 14 * S, y + 6 * S, 0, -speed, 2.8 * S);
-      bolt(player.x + 14 * S, y + 6 * S, 0, -speed, 2.8 * S);
+      if (upLevel('twinmount')) {
+        bolt(px - 14 * S, y + 6 * S, 0, -speed, 2.8 * S);
+        bolt(px + 14 * S, y + 6 * S, 0, -speed, 2.8 * S);
+      }
     }
     if (player.wingmen > 0) {
       for (const d of player.drones) bolt(d.x, d.y - 8 * S, 0, -speed * 0.94, 2.6 * S);
@@ -950,7 +1126,7 @@
         }
       }
       if (p.y > H + 30) { G.powerups.splice(i, 1); continue; }
-      if (player.alive && hypot(p.x - player.x, p.y - player.y) < p.r + player.r) {
+      if (player.alive && shipHit(p.x, p.y, p.r + player.r)) {
         G.powerups.splice(i, 1);
         applyPowerup(p.def);
       }
@@ -1468,6 +1644,7 @@
     player.rapid = 0;
     player.wingmen = 0;
     player.drones = [];
+    player.dual = false;
     player.cool = 0;
     G.eBullets.length = 0;
     refreshChip();
@@ -1475,6 +1652,18 @@
 
   function hitPlayer(cause) {
     if (!player.alive || player.invuln > 0) return;
+    // The recovered fighter takes the hit first: you drop back to one hull.
+    if (player.dual) {
+      player.dual = false;
+      player.invuln = 1.2;
+      explode(player.x + 9 * S, player.y, '#9fd8ff', 20, 1.1);
+      floatText(player.x, player.y - 26 * S, 'WINGMAN DOWN', '#ff8548');
+      G.shake = 8;
+      Sound.hit();
+      Haptics.shieldHit();
+      breakCombo();
+      return;
+    }
     if (player.shield) {
       player.shield = false;
       player.invuln = 1.1;
@@ -1504,7 +1693,9 @@
 
   function killEnemy(index) {
     const e = G.enemies[index];
+    if (e.hasCaptive) freeCaptive();
     const diving = e.mode === 'path' && (e.onArrive === 'return' || e.onArrive === 'gone');
+    if (e.bonus && G.bonus) G.bonus.killed++;
     bumpCombo();
     const mult = comboMult();
     const pts = Math.round(e.def.pts * (diving ? 2 : 1) * (e.elite ? 3 : 1)
@@ -1612,6 +1803,70 @@
     el('comboFill').style.width = (100 * clamp(G.comboTimer / comboWindow(), 0, 1)) + '%';
   }
 
+  const CAPTURE_HALF_W = 26;      // half-width of the tractor beam, in design px
+
+  /** The commander takes the ship: you lose it, and it joins the formation. */
+  function capturePlayer(e) {
+    G.captive = { captor: e, state: 'held', x: e.x, y: e.y + 26 * S };
+    e.hasCaptive = true;
+    e.capturing = false;
+    e.hoverT = 0;
+    e.path = retreatPath(e);
+    e.d = 0;
+    e.speed = 300 * S * loopMul();
+    e.mode = 'path';
+    e.onArrive = 'formation';
+
+    player.alive = false;
+    player.deadTimer = 1.6;
+    player.dual = false;
+    breakCombo();
+    G.lives--;
+    updateLives();
+    explode(player.x, player.y, '#ffd166', 26, 1.3);
+    G.shake = 12;
+    G.killcam = { label: 'a capture beam', x: e.x, y: e.y, t: 1.15 };
+    announce('SHIP CAPTURED', 'destroy the captor to get it back', true);
+    Sound.playerDie();
+    Haptics.shipLost();
+    refreshChip();
+  }
+
+  /** Captor destroyed: the fighter breaks free and flies home to dock. */
+  function freeCaptive() {
+    if (!G.captive) return;
+    G.captive.state = 'freeing';
+    G.captive.captor = null;
+    announce('FIGHTER FREED', 'bring it home', false);
+    Sound.powerup();
+  }
+
+  function updateCaptive(dt) {
+    const c = G.captive;
+    if (!c) return;
+    if (c.state === 'held') {
+      const e = c.captor;
+      if (!e || G.enemies.indexOf(e) < 0) { freeCaptive(); return; }
+      c.x = e.x;
+      c.y = e.y + 26 * S;
+      return;
+    }
+    // Freeing: home in on the ship and dock with it.
+    const tx = player.x, ty = player.y;
+    const a = Math.atan2(ty - c.y, tx - c.x);
+    const sp = 300 * S * dt;
+    c.x += Math.cos(a) * sp;
+    c.y += Math.sin(a) * sp;
+    if (player.alive && hypot(tx - c.x, ty - c.y) < 22 * S) {
+      G.captive = null;
+      player.dual = true;
+      floatText(player.x, player.y - 30 * S, 'DUAL FIGHTER', '#8dff5a');
+      announce('DUAL FIGHTER', 'twin hulls, twin guns');
+      Sound.levelUp();
+      Haptics.powerup();
+    }
+  }
+
   const RAIDER_NAME = {
     grunt: 'a raider', wasp: 'an interceptor',
     commander: 'a command craft', turret: 'a gun platform'
@@ -1666,7 +1921,7 @@
     // Enemy shots
     for (let i = G.eBullets.length - 1; i >= 0; i--) {
       const b = G.eBullets[i];
-      if (hypot(b.x - player.x, b.y - player.y) < b.r + player.r * 0.8) {
+      if (shipHit(b.x, b.y, b.r + player.r * 0.8)) {
         const label = b.kind === 'missile' ? 'a homing missile'
                     : b.src === 'boss' ? 'boss fire' : 'raider fire';
         G.eBullets.splice(i, 1);
@@ -1678,7 +1933,8 @@
     // Ramming raiders
     for (let i = G.enemies.length - 1; i >= 0; i--) {
       const e = G.enemies[i];
-      if (hypot(e.x - player.x, e.y - player.y) < e.def.r * S + player.r * 0.8) {
+      if (e.bonus) continue;                      // challenging stages are safe
+      if (shipHit(e.x, e.y, e.def.r * S + player.r * 0.8)) {
         explode(e.x, e.y, e.def.color, 16, 1.1);
         const label = 'ramming ' + (RAIDER_NAME[e.type] || 'a raider');
         G.enemies.splice(i, 1);
@@ -2055,22 +2311,31 @@
       // Twin engine flares, drawn live so they flicker
       const f = (5 + Math.sin(G.time * 40) * 2) * S;
       ctx.globalCompositeOperation = 'lighter';
-      for (const sx of [-4.5, 4.5]) {
-        const fg = ctx.createRadialGradient(sx * S, 12 * S, 0, sx * S, 12 * S, 4 * S + f);
-        const hot = player.rapid > 0 ? '255,201,77' : '120,215,255';
-        fg.addColorStop(0, 'rgba(255,255,255,.95)');
-        fg.addColorStop(0.35, 'rgba(' + hot + ',.8)');
-        fg.addColorStop(1, 'rgba(' + hot + ',0)');
-        ctx.fillStyle = fg;
-        ctx.beginPath();
-        ctx.ellipse(sx * S, 12 * S + f * 0.4, 3.2 * S, 3.4 * S + f, 0, 0, Math.PI * 2);
-        ctx.fill();
+      for (const ox of shipOffsets()) {
+        for (const sx of [-4.5, 4.5]) {
+          const ex = ox + sx * S;
+          const fg = ctx.createRadialGradient(ex, 12 * S, 0, ex, 12 * S, 4 * S + f);
+          const hot = player.rapid > 0 ? '255,201,77' : '120,215,255';
+          fg.addColorStop(0, 'rgba(255,255,255,.95)');
+          fg.addColorStop(0.35, 'rgba(' + hot + ',.8)');
+          fg.addColorStop(1, 'rgba(' + hot + ',0)');
+          ctx.fillStyle = fg;
+          ctx.beginPath();
+          ctx.ellipse(ex, 12 * S + f * 0.4, 3.2 * S, 3.4 * S + f, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.globalCompositeOperation = 'source-over';
 
       const tintColor = WEAPON_TINT[player.weapon] || WEAPON_TINT.single;
-      Sprites.blit(ctx, Sprites.get('ship:' + player.weapon, 46 * S, 46 * S,
-                                    (c) => paintShip(c, tintColor, 1)));
+      const sp = Sprites.get('ship:' + player.weapon, 46 * S, 46 * S,
+                             (c) => paintShip(c, tintColor, 1));
+      for (const ox of shipOffsets()) {
+        ctx.save();
+        ctx.translate(ox, 0);
+        Sprites.blit(ctx, sp);
+        ctx.restore();
+      }
     }
 
     if (player.shield) {
@@ -2300,8 +2565,61 @@
                        (c) => paintRaider(c, e.def, e.type, flap));
   }
 
+  /** The capture beam: a gold cone reaching down from a hovering commander. */
+  function drawCaptureBeam(e) {
+    const half = CAPTURE_HALF_W * S;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createLinearGradient(0, 0, 0, H - e.y);
+    g.addColorStop(0, 'rgba(255,201,77,.42)');
+    g.addColorStop(1, 'rgba(255,201,77,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(-half * 0.45, 0);
+    ctx.lineTo(half * 0.45, 0);
+    ctx.lineTo(half, H - e.y);
+    ctx.lineTo(-half, H - e.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,232,170,.55)';
+    ctx.lineWidth = 1.6 * S;
+    for (let i = 0; i < 4; i++) {
+      const y = ((G.time * 200 * S + i * 70 * S) % (H - e.y));
+      const w = half * (0.45 + 0.55 * (y / Math.max(1, H - e.y)));
+      ctx.beginPath();
+      ctx.moveTo(-w, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /** Your ship in enemy hands, or on its way home. */
+  function drawCaptive() {
+    const c = G.captive;
+    if (!c) return;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    if (c.state === 'held') {
+      ctx.rotate(Math.PI);                       // held nose-up under the captor
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgba(255,201,77,.28)';
+      ctx.beginPath();
+      ctx.arc(0, 0, 20 * S, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.scale(0.85, 0.85);
+    Sprites.blit(ctx, Sprites.get('ship:captive', 46 * S, 46 * S,
+                                  (c2) => paintShip(c2, '#ffc94d', 1)));
+    ctx.restore();
+  }
+
   function drawEnemy(e) {
     const r = e.def.r * S;
+    if (e.capturing && e.mode === 'hover') drawCaptureBeam(e);
     ctx.save();
     ctx.translate(e.x, e.y);
 
@@ -2899,6 +3217,7 @@
     drawPowerups();
     for (const e of G.enemies) drawEnemy(e);
     if (G.boss) drawBoss(G.boss);
+    drawCaptive();
     if (G.state !== 'menu' && G.state !== 'over' && player.alive) {
       drawDrones();
       drawPlayer();
@@ -2973,6 +3292,7 @@
     updateComboHud();
 
     updatePlayer(gdt);
+    updateCaptive(edt);
     updateBullets(gdt, edt);
     updatePowerups(gdt);
 
@@ -2987,10 +3307,25 @@
       G.waveClearTimer -= gdt;
       if (G.waveClearTimer <= 0) {
         hideAnnounce();
-        // The refit is the boss reward; ordinary waves roll straight on.
-        if (waveDef().boss) offerUpgrade(2, advanceWave);
+        const next = G.afterClear;
+        G.afterClear = null;
+        if (next) next();
+        // The refit is the boss reward; ordinary waves roll straight on, and
+        // the wave before each boss hands off to a challenging stage.
+        else if (waveDef().boss) offerUpgrade(2, advanceWave);
+        else if (isBonusWave(G.wave)) startBonus();
         else advanceWave();
       }
+      return;
+    }
+
+    if (G.state === 'bonus') {
+      updateSpawnQueue(edt);
+      updateEnemies(edt);
+      collisions();
+      refreshChip();
+      G.bonus.timer -= gdt;
+      if ((G.enemies.length === 0 && G.spawnQueue.length === 0) || G.bonus.timer <= 0) endBonus();
       return;
     }
 
@@ -3077,11 +3412,15 @@
     player.wingmen = 0;
     player.drones = [];
     player.bombs = perkLevel('munitions');
+    player.dual = false;
     player.cool = 0;
     G.slow = 0;
     G.flash = 0;
     G.shock = null;
     G.killcam = null;
+    G.bonus = null;
+    G.afterClear = null;
+    G.captive = null;
 
     el('hudScore').textContent = '0';
     el('hudWave').textContent = G.wave;   // the loadout screen sits over the HUD
@@ -3115,7 +3454,8 @@
   }
 
   function pauseGame() {
-    if (G.state !== 'play' && G.state !== 'intro' && G.state !== 'clear') return;
+    if (G.state !== 'play' && G.state !== 'intro' && G.state !== 'clear' &&
+        G.state !== 'bonus') return;
     G.pausedFrom = G.state;
     G.state = 'paused';
     input.firing = false;

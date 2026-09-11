@@ -13,6 +13,14 @@ dependencies — open `index.html` and play.
 - **Combo** — kills chain while the bar under your score is draining. Every
   five kills adds a multiplier, up to ×8. Going quiet drops it, and so does
   getting hit.
+- **Capture and rescue** — gold command craft sometimes break off into a
+  hover and open a tractor beam. Fly into it and your ship is taken: you
+  lose it, and it rides back to the formation under its captor. Destroy the
+  captor and the fighter flies home and docks as a **dual fighter** — twin
+  hulls, twin guns, and a hit costs the second hull rather than a life.
+- **Challenging stages** — before each boss, a wave that does not shoot back
+  and cannot touch you. Sixteen raiders fly a set piece; clear the lot for a
+  perfect bonus.
 - **Losing a ship** — the field drops into slow motion for a beat and names
   what destroyed you: ramming raiders, raider or boss fire, a homing
   missile, the beam, or the boss itself. Deaths should teach something.
@@ -39,6 +47,15 @@ made from the game loop rather than from a tap may be ignored.
   triple score, and always drop a power-up.
 - **Power-ups** — red command craft and armoured gun platforms drop them, as
   do boss escorts. Losing a ship costs you whatever you were carrying.
+
+## Capture and rescue
+
+In the arcade original you can shoot down your own captured fighter, and
+losing it that way is part of the tension. That only works when every shot
+is deliberate. Auto-fire is on by default here, and in testing the captive
+was destroyed by the player's own fire within a second of nearly every
+capture, so the rescue almost never happened. The captive is therefore held
+out of your firing solution: destroy the captor and you always get it back.
 
 ## Refit
 
