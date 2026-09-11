@@ -279,19 +279,36 @@
    * the hangar, so a bad run still moves the next one forward.
    */
   const PERKS = [
-    { id: 'reserve',   name: 'Reserve Bay',     cap: 3, costs: [40, 100, 200],
+    { id: 'reserve',   name: 'Reserve Bay',     cap: 3, costs: [40, 120, 400],
       blurb: 'Start every run with an extra ship.' },
-    { id: 'munitions', name: 'Munitions Store', cap: 2, costs: [60, 150],
-      blurb: 'Start every run with a smart bomb in the rack.' },
-    { id: 'dice',      name: 'Requisition',     cap: 2, costs: [50, 120],
+    { id: 'dice',      name: 'Requisition',     cap: 2, costs: [50, 150],
       blurb: 'Start every run with an extra refit reroll.' },
-    { id: 'headstart', name: 'Shakedown Run',   cap: 1, costs: [180],
+    { id: 'munitions', name: 'Munitions Store', cap: 2, costs: [60, 180],
+      blurb: 'Start every run with a smart bomb in the rack.' },
+    { id: 'hull',      name: 'Hardened Hull',   cap: 2, costs: [90, 240],
+      blurb: 'A new ship stays untouchable 0.8s longer.' },
+    { id: 'salvright', name: 'Salvage Rights',  cap: 3, costs: [80, 220, 600],
+      blurb: 'Earn 25% more scrap from every run.' },
+    // The back half of the hangar is earned, not just afforded: each of these
+    // stays locked until the run history shows you have been that deep.
+    { id: 'headstart', name: 'Shakedown Run',   cap: 2, costs: [180, 700], needWave: 4,
       blurb: 'Take an extra loadout pick before wave 1.' },
-    { id: 'salvright', name: 'Salvage Rights',  cap: 2, costs: [80, 180],
-      blurb: 'Earn 25% more scrap from every run.' }
+    { id: 'veteran',   name: 'Veteran Crew',    cap: 2, costs: [120, 450], needWave: 6,
+      blurb: 'Your combo window opens 0.4s wider.' },
+    { id: 'cache',     name: 'Weapons Cache',   cap: 1, costs: [350], needWave: 5,
+      blurb: 'Launch with a random laser already armed for 20s.' },
+    { id: 'conting',   name: 'Contingency',     cap: 1, costs: [900], needWave: 9,
+      blurb: 'The first ship destroyed each run is replaced free.' },
+    { id: 'contract',  name: 'Fleet Contract',  cap: 1, costs: [1400], needWave: 13,
+      blurb: 'Every boss you beat pays a third refit pick.' }
   ];
 
   const perkLevel = (id) => records.perks[id] || 0;
+  /** Locked perks are visible but unbuyable until a run has gone that deep. */
+  const perkLocked = (p) => !!p.needWave && records.bestWave < p.needWave;
+  const perkGate = (p) => (p.needWave >= WAVES.length + 1
+    ? 'Clear a full campaign loop'
+    : 'Reach wave ' + p.needWave);
 
   /**
    * Scrap leans on how deep a run got rather than on how much score it farmed
@@ -299,10 +316,10 @@
    */
   function scrapEarned() {
     const cleared = G.wave - 1;                  // waves actually finished
-    let base = Math.floor(G.score / 500) + cleared * 8;
-    if (cleared >= 4) base += 40;                // the Sentinel
-    if (cleared >= 8) base += 80;                // the Hive Queen
-    base += 150 * (G.loop - 1);                  // every Dreadnought after that
+    let base = Math.floor(G.score / 600) + cleared * 7;
+    if (cleared >= 4) base += 35;                // the Sentinel
+    if (cleared >= 8) base += 70;                // the Hive Queen
+    base += 120 * (G.loop - 1);                  // every Dreadnought after that
     return Math.max(1, Math.round(base * (1 + 0.25 * perkLevel('salvright'))));
   }
 
@@ -389,6 +406,7 @@
     combo: 0,                   // kills chained inside the combo window
     comboTimer: 0,
     lastMult: 1,
+    conting: false,             // Contingency perk: one free hull this run
     captive: null,              // your ship, in enemy hands
     bonus: null,                // challenging-stage scoring
     killcam: null,              // post-mortem beat naming what hit you
@@ -414,6 +432,22 @@
     deadTimer: 0,
     thrust: 0
   };
+
+  // The reserve is capped: a run that hoards ships stops being a run and
+  // starts being a cushion, and every source of ships respects this.
+  const LIFE_CAP = 5;
+  const livesFull = () => G.lives >= LIFE_CAP;
+
+  /**
+   * Adds ships up to the cap and returns how many actually landed, so a
+   * caller can pay out something else when the rack is already full.
+   */
+  function grantLife(n) {
+    const before = G.lives;
+    G.lives = Math.min(LIFE_CAP, G.lives + (n == null ? 1 : n));
+    updateLives();
+    return G.lives - before;
+  }
 
   /** Arms a weapon mode, replacing whatever was equipped. */
   function setWeapon(kind, seconds) {
@@ -1112,15 +1146,17 @@
     // still has real time left on it the draw skips weapons entirely and
     // hands out something that stacks instead.
     const armed = player.weapon !== 'single' && player.weaponTime > 5;
+    const full = livesFull();
+    const skip = (p) => (armed && p.weapon) || (full && p.kind === 'life');
     let total = 0;
     for (const p of POWERUPS) {
-      if (armed && p.weapon) continue;
+      if (skip(p)) continue;
       total += p.weight;
     }
     let roll = Math.random() * total;
     let chosen = null;
     for (const p of POWERUPS) {
-      if (armed && p.weapon) continue;
+      if (skip(p)) continue;
       roll -= p.weight;
       if (roll <= 0) { chosen = p; break; }
       chosen = p;
@@ -1162,7 +1198,13 @@
       case 'wingmen': launchWingmen(puTime(16)); break;
       case 'warp': G.slow = puTime(6); Sound.tone(760, 0.5, 'sine', 0.06, 180); break;
       case 'bomb': player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); break;
-      case 'life': G.lives++; updateLives(); break;
+      case 'life':
+        // A full rack turns the pickup into points rather than nothing.
+        if (!grantLife(1)) {
+          addScore(2000);
+          floatText(player.x, player.y - 42 * S, 'MAX SHIPS +2000', '#ffd166');
+        }
+        break;
     }
     floatText(player.x, player.y - 26 * S, def.label, def.color);
     refreshChip();
@@ -1638,7 +1680,7 @@
     player.alive = true;
     player.x = player.tx = W / 2;
     player.y = player.ty = playerMaxY();
-    player.invuln = 2.2;
+    player.invuln = 2.2 + 0.8 * perkLevel('hull');
     player.weapon = 'single';
     player.weaponTime = 0;
     player.rapid = 0;
@@ -1670,7 +1712,12 @@
     // something instead of just costing a ship.
     if (cause) G.killcam = { label: cause.label, x: cause.x, y: cause.y, t: 1.15 };
     breakCombo();
-    G.lives--;
+    if (G.conting) {
+      G.conting = false;
+      floatText(player.x, player.y - 40 * S, 'CONTINGENCY', '#8dff5a');
+    } else {
+      G.lives--;
+    }
     updateLives();
     explode(player.x, player.y, '#9fd8ff', 34, 1.6);
     G.shake = 14;
@@ -1758,7 +1805,8 @@
   const enemyFireMul = () => 1 + 0.3 * upLevel('bloodmoney');
   const dropMul = () => (1 + 0.6 * upLevel('salvage')) * (upLevel('swarm') ? 2 : 1);
   const comboWindow = () =>
-    (COMBO_WINDOW + 0.7 * upLevel('chain')) * (upLevel('overheat') ? 0.6 : 1);
+    (COMBO_WINDOW + 0.7 * upLevel('chain') + 0.4 * perkLevel('veteran')) *
+    (upLevel('overheat') ? 0.6 : 1);
   const comboCap = () => COMBO_MAX + 2 * upLevel('overdrive');
   const comboMult = () => Math.min(comboCap(), 1 + Math.floor(G.combo / 5));
   const bombCap = () => 3 + upLevel('bombrack');
@@ -2018,9 +2066,7 @@
     el('hudWave').textContent = G.wave;
 
     // A spare ship on the run-up to every boss (waves 3, 7, 11, ...).
-    if (G.wave >= 3 && (G.wave - 3) % 4 === 0) {
-      G.lives++;
-      updateLives();
+    if (G.wave >= 3 && (G.wave - 3) % 4 === 0 && grantLife(1)) {
       floatText(player.x, player.y - 34 * S, 'EXTRA SHIP', '#ffd166');
       Sound.powerup();
     }
@@ -2075,7 +2121,8 @@
   /** Weighted draw of n distinct cards from whatever is not yet capped. */
   function drawOffer(n, noPacts) {
     const eligible = CARDS.filter((c) => upLevel(c.id) < c.cap &&
-                                         !(noPacts && c.rarity === 'pact'));
+                                         !(noPacts && c.rarity === 'pact') &&
+                                         !(c.id === 'spare' && livesFull()));
     const taken = [];
     while (taken.length < n) {
       const avail = eligible.filter((c) => taken.indexOf(c) < 0);
@@ -2158,7 +2205,7 @@
     G.taken.push(c.id);
 
     // Cards that pay out, or charge, the moment they are taken.
-    if (c.id === 'spare') { G.lives++; updateLives(); }
+    if (c.id === 'spare' && !grantLife(1)) addScore(2000);
     if (c.id === 'bombrack') { player.bombs = Math.min(bombCap(), player.bombs + 1); updateBombs(); }
     if (c.id === 'glasshull') {
       G.picks++;                       // the extra pick this pact buys
@@ -3279,7 +3326,7 @@
         if (next) next();
         // The refit is the boss reward; ordinary waves roll straight on, and
         // the wave before each boss hands off to a challenging stage.
-        else if (waveDef().boss) offerUpgrade(2, advanceWave);
+        else if (waveDef().boss) offerUpgrade(2 + perkLevel('contract'), advanceWave);
         else if (isBonusWave(G.wave)) startBonus();
         else advanceWave();
       }
@@ -3348,7 +3395,7 @@
     G.score = 0;
     G.wave = start;
     G.loop = 1 + Math.floor((start - 1) / WAVES.length);
-    G.lives = 3 + perkLevel('reserve');
+    G.lives = Math.min(LIFE_CAP, 3 + perkLevel('reserve'));
     G.rerolls = 1 + perkLevel('dice');
     G.taken = [];
     G.startBest = records.best;
@@ -3379,6 +3426,10 @@
     player.bombs = perkLevel('munitions');
     player.dual = false;
     player.cool = 0;
+    // Weapons Cache launches you already armed; Contingency holds one
+    // replacement hull in reserve for the first ship you lose.
+    if (perkLevel('cache')) setWeapon(pick(['twin', 'spread', 'pierce']), 20);
+    G.conting = perkLevel('conting') > 0;
     G.slow = 0;
     G.flash = 0;
     G.shock = null;
@@ -3494,19 +3545,24 @@
     el('hangarList').innerHTML = PERKS.map((p) => {
       const lvl = perkLevel(p.id);
       const maxed = lvl >= p.cap;
+      const locked = perkLocked(p);
       const cost = maxed ? 0 : p.costs[lvl];
-      const afford = !maxed && records.scrap >= cost;
+      const afford = !maxed && !locked && records.scrap >= cost;
       const tier = p.cap > 1 ? '<span class="up-tier">' + ROMAN[Math.min(lvl + 1, p.cap)] + '</span>' : '';
-      return '<div class="perk' + (maxed ? ' perk-maxed' : '') + '">' +
+      const note = locked
+        ? '<span class="perk-lock">Locked \u2014 ' + perkGate(p) + '</span>'
+        : (lvl ? '<span class="up-owned">owned ' + ROMAN[lvl] + '</span>' : '');
+      return '<div class="perk' + (maxed ? ' perk-maxed' : '') + (locked ? ' perk-locked' : '') + '">' +
              '<div class="perk-text">' +
              '<span class="perk-name">' + p.name + (maxed ? '' : tier) + '</span>' +
-             '<span class="perk-blurb">' + p.blurb + '</span>' +
-             (lvl ? '<span class="up-owned">owned ' + ROMAN[lvl] + '</span>' : '') +
+             '<span class="perk-blurb">' + p.blurb + '</span>' + note +
              '</div>' +
              (maxed
                ? '<span class="perk-buy perk-done">MAX</span>'
-               : '<button class="perk-buy" data-id="' + p.id + '"' + (afford ? '' : ' disabled') + '>' +
-                 cost + '</button>') +
+               : locked
+                 ? '<span class="perk-buy perk-done">\ud83d\udd12</span>'
+                 : '<button class="perk-buy" data-id="' + p.id + '"' + (afford ? '' : ' disabled') + '>' +
+                   cost + '</button>') +
              '</div>';
     }).join('');
 
@@ -3518,7 +3574,7 @@
   function buyPerk(id) {
     const p = PERKS.find((x) => x.id === id);
     const lvl = perkLevel(id);
-    if (!p || lvl >= p.cap) return;
+    if (!p || lvl >= p.cap || perkLocked(p)) return;
     const cost = p.costs[lvl];
     if (records.scrap < cost) return;
     records.scrap -= cost;

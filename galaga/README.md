@@ -35,6 +35,10 @@ made from the game loop rather than from a tap may be ignored.
 - **Ships** — you start with three, gain one on the run-up to every boss
   (waves 3, 7, 11), and your reserve is topped up to three when a boss wave
   begins, so a bad run-up never puts you into a boss on your last ship.
+- **Ships** — you fly with three in reserve and can never hold more than
+  five. Once the rack is full, extra-life pickups stop dropping and the
+  Spare Ship card leaves the deck, so nothing in the game is wasted on a
+  reserve you cannot use.
 - **Waves** — 12 hand-tuned waves. Clear every raider to advance; diving
   raiders score double. Waves 4, 8 and 12 are boss fights, and after wave
   12 the campaign loops with faster, tougher, higher-HP raiders.
@@ -101,18 +105,29 @@ Pacts buy power with a real drawback. They sit in the same draw.
 ## Hangar
 
 Scrap is the only thing that survives a run — you bank it from score and,
-more heavily, from how far you reached: eight per wave cleared, plus a
-one-time bounty for every boss you put down (40 for the Sentinel, 80 for the
-Hive Queen, 150 for each Dreadnought). Spend it on perks that apply to every
+more heavily, from how far you reached: seven per wave cleared, plus a
+one-time bounty for every boss you put down (35 for the Sentinel, 70 for the
+Hive Queen, 120 for each Dreadnought). Spend it on perks that apply to every
 run afterwards.
 
-| Perk | Effect | Max |
-| --- | --- | --- |
-| Reserve Bay | Start with an extra ship | III |
-| Munitions Store | Start with a smart bomb in the rack | II |
-| Requisition | Start with an extra refit reroll | II |
-| Shakedown Run | Take an extra loadout pick before wave 1 | I |
-| Salvage Rights | Earn 25% more scrap per run | II |
+The back half of the hangar is earned rather than afforded. Those perks stay
+locked, with their condition on the card, until a run has actually gone that
+deep — so the hangar is a set of goals, not just a bill. Stocking it
+completely costs 6,330 scrap and is impossible until you have cleared a full
+campaign loop.
+
+| Perk | Effect | Max | Unlocks at |
+| --- | --- | --- | --- |
+| Reserve Bay | Start with an extra ship | III | — |
+| Requisition | Start with an extra refit reroll | II | — |
+| Munitions Store | Start with a smart bomb in the rack | II | — |
+| Hardened Hull | A new ship stays untouchable 0.8s longer | II | — |
+| Salvage Rights | Earn 25% more scrap per run | III | — |
+| Shakedown Run | Take an extra loadout pick before wave 1 | II | wave 4 |
+| Weapons Cache | Launch with a random laser armed for 20s | I | wave 5 |
+| Veteran Crew | Combo window opens 0.4s wider | II | wave 6 |
+| Contingency | First ship destroyed each run is replaced free | I | wave 9 |
+| Fleet Contract | Every boss pays a third refit pick | I | a full loop |
 
 Practice runs started with `?wave=N` bank no scrap and set no records.
 
@@ -131,7 +146,7 @@ they survive losing a ship; every other effect is lost with it.
 | `V` | Wingmen | Two drones fly your flanks and fire with you |
 | `B` | Smart bomb | Stocks up to three. Tap the bomb button (or `B`) to clear every shot on screen and hit every raider at once. The button is inert to drags, so flying from that corner never spends one |
 | `T` | Time warp | Instant: raiders and their fire run at 40% for six seconds — you don't |
-| `1` | Extra life | Rare |
+| `1` | Extra life | Rare. Does not drop while your reserve is full; picking one up at five ships pays 2,000 points instead |
 
 Active effects show as badges in the HUD with their remaining seconds. A
 drop is never a weapon while the weapon you are holding still has real time

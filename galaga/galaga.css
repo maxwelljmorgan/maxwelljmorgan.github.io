@@ -467,6 +467,13 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
   background: rgba(255, 255, 255, .04);
 }
 .perk-maxed { opacity: .6; }
+.perk-locked { opacity: .55; border-style: dashed; }
+.perk-lock {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
 .perk-text { display: grid; gap: 3px; flex: 1; min-width: 0; }
 .perk-name { font-size: 14px; font-weight: 700; color: var(--ink); }
 .perk-blurb { font-size: 12px; line-height: 1.4; color: #cddaf0; }
