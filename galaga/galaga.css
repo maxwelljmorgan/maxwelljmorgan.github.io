@@ -110,10 +110,11 @@ html, body {
   border: 2px solid rgba(255, 90, 43, .75);
   background: rgba(10, 16, 32, .62);
   color: #ff5a2b;
-  cursor: pointer;
+  /* Inert to pointers: the canvas hit-tests this rect so a drag starting
+     here still flies the ship, and only a real tap spends a bomb. */
+  pointer-events: none;
   -webkit-tap-highlight-color: transparent;
 }
-.bomb-btn:active { transform: scale(.93); background: rgba(255, 90, 43, .3); }
 .bomb-ring {
   position: absolute;
   inset: 9px;
@@ -320,11 +321,13 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
 .menu-stats .k { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .menu-stats .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-.toggles { display: flex; gap: 8px; margin: 6px 0 2px; }
+.toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; }
+.toggles .toggle { flex: 1 1 30%; }
 .toggle {
   flex: 1;
-  padding: 10px 6px;
-  font-size: 11px;
+  padding: 10px 4px;
+  font-size: 10px;
+  white-space: nowrap;
   font-weight: 700;
   letter-spacing: .06em;
   border-radius: 11px;
@@ -481,6 +484,24 @@ h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
 }
 .perk-buy:disabled { opacity: .35; cursor: default; }
 .perk-done { border-style: dashed; background: none; cursor: default; text-align: center; }
+
+/* ------------------ Build readout while paused ----------------- */
+.pause-build {
+  margin: -4px 0 16px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+}
+.pause-build-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pause-build .run-build { margin-bottom: 0; }
 
 /* --------------------- End-of-run summary --------------------- */
 .scrap-earned {

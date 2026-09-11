@@ -13,6 +13,12 @@ dependencies — open `index.html` and play.
 - **Combo** — kills chain while the bar under your score is draining. Every
   five kills adds a multiplier, up to ×8. Going quiet drops it, and so does
   getting hit.
+- **Losing a ship** — the field drops into slow motion for a beat and names
+  what destroyed you: ramming raiders, raider or boss fire, a homing
+  missile, the beam, or the boss itself. Deaths should teach something.
+- **Pause** — lists the cards you are carrying, and toggles auto-fire,
+  sound and rumble (short vibration on hits, bombs and boss kills, where
+  the device supports it).
 - **Ships** — you start with three, gain one on the run-up to every boss
   (waves 3, 7, 11), and your reserve is topped up to three when a boss wave
   begins, so a bad run-up never puts you into a boss on your last ship.
@@ -98,7 +104,7 @@ they survive losing a ship; every other effect is lost with it.
 | `R` | Rapid fire | Roughly double the fire rate |
 | `S` | Barrier | Absorbs one hit |
 | `V` | Wingmen | Two drones fly your flanks and fire with you |
-| `B` | Smart bomb | Stocks up to three. Tap the bomb button (or `B`) to clear every shot on screen and hit every raider at once |
+| `B` | Smart bomb | Stocks up to three. Tap the bomb button (or `B`) to clear every shot on screen and hit every raider at once. The button is inert to drags, so flying from that corner never spends one |
 | `T` | Time warp | Instant: raiders and their fire run at 40% for six seconds — you don't |
 | `1` | Extra life | Rare |
 

@@ -208,6 +208,24 @@
     }
   };
 
+  /**
+   * Short vibration patterns for the events worth feeling in the hand.
+   * A no-op on desktop, and on anything that refuses the API.
+   */
+  const Haptics = {
+    on: true,
+    buzz(pattern) {
+      if (!this.on || !navigator.vibrate) return;
+      try { navigator.vibrate(pattern); } catch (e) { /* blocked */ }
+    },
+    shieldHit() { this.buzz(35); },
+    shipLost() { this.buzz([90, 50, 140]); },
+    bomb() { this.buzz([25, 25, 70]); },
+    powerup() { this.buzz(18); },
+    waveClear() { this.buzz([20, 45, 20]); },
+    bossDown() { this.buzz([60, 40, 60, 40, 120]); }
+  };
+
   // =========================================================
   // 3. Saved settings and records
   // =========================================================
@@ -226,9 +244,11 @@
 
   const settings = {
     autoFire: Store.get('autoFire', true),
-    sound: Store.get('sound', true)
+    sound: Store.get('sound', true),
+    haptics: Store.get('haptics', true)
   };
   Sound.on = settings.sound;
+  Haptics.on = settings.haptics;
 
   const records = {
     best: Store.get('best', 0),
@@ -345,6 +365,7 @@
     combo: 0,                   // kills chained inside the combo window
     comboTimer: 0,
     lastMult: 1,
+    killcam: null,              // post-mortem beat naming what hit you
     shock: null,                // smart-bomb blast wave
     slow: 0,                    // time-warp timer
     flash: 0,                   // smart-bomb screen flash
@@ -395,12 +416,26 @@
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
+  const TAP_SLOP = 12;        // px of travel still counted as a tap
+  const TAP_TIME = 450;       // ms held before it stops being a tap
+
+  function overBombButton(clientX, clientY) {
+    const btn = el('bombBtn');
+    if (btn.classList.contains('hidden')) return false;
+    const r = btn.getBoundingClientRect();
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+  }
+
   canvas.addEventListener('pointerdown', (e) => {
     if (G.state !== 'play' && G.state !== 'intro' && G.state !== 'clear') return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
     const p = pointerPos(e);
-    drag = { id: e.pointerId, px: p.x, py: p.y, sx: player.tx, sy: player.ty };
+    drag = {
+      id: e.pointerId, px: p.x, py: p.y, sx: player.tx, sy: player.ty,
+      onBomb: overBombButton(e.clientX, e.clientY),
+      moved: 0, t0: performance.now()
+    };
     input.firing = true;
   });
 
@@ -408,12 +443,18 @@
     if (!drag || e.pointerId !== drag.id) return;
     e.preventDefault();
     const p = pointerPos(e);
+    drag.moved = Math.max(drag.moved, hypot(p.x - drag.px, p.y - drag.py));
     player.tx = clamp(drag.sx + (p.x - drag.px), 16 * S, W - 16 * S);
     player.ty = clamp(drag.sy + (p.y - drag.py) * 0.9, playerMinY(), playerMaxY());
   });
 
   function endDrag(e) {
     if (!drag || (e && e.pointerId !== drag.id)) return;
+    // A short, still press that began on the bomb button spends a bomb;
+    // anything longer or further was the player flying, so leave it alone.
+    if (drag.onBomb && drag.moved < TAP_SLOP && performance.now() - drag.t0 < TAP_TIME) {
+      useBomb();
+    }
     drag = null;
     input.firing = false;
   }
@@ -812,7 +853,8 @@
       vy = Math.sin(a) * speed;
     }
     // All incoming fire is the same hot orange: green is yours, orange is theirs.
-    G.eBullets.push({ x: e.x, y: e.y + 10 * S, vx: vx, vy: vy, r: 4 * S, color: '#ff8c42', kind: 'plain', life: 6 });
+    G.eBullets.push({ x: e.x, y: e.y + 10 * S, vx: vx, vy: vy, r: 4 * S, color: '#ff8c42',
+                      kind: 'plain', src: 'raider', life: 6 });
     Sound.enemyShoot();
   }
 
@@ -823,6 +865,7 @@
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       r: (o.r || 5) * S,
+      src: 'boss',
       color: o.color || '#ff8c42',
       kind: o.kind || 'plain',
       turn: o.turn || 0,
@@ -913,6 +956,7 @@
 
   function applyPowerup(def) {
     Sound.powerup();
+    Haptics.powerup();
     switch (def.kind) {
       case 'twin': setWeapon('twin', 15); break;
       case 'spread': setWeapon('spread', 15); break;
@@ -949,6 +993,7 @@
     G.eBullets.length = 0;
     G.flash = 0.4;
     G.shock = { x: player.x, y: player.y, t: 0 };
+    Haptics.bomb();
     G.shake = 20;
     Sound.bigKill();
     for (let i = G.enemies.length - 1; i >= 0; i--) {
@@ -1277,6 +1322,7 @@
     G.enemies.length = 0;
     G.spawnQueue.length = 0;
     G.bossDefeated = true;
+    Haptics.bossDown();
     G.waveClearTimer = 2.4;
     el('bossBarWrap').classList.add('hidden');
   }
@@ -1424,7 +1470,7 @@
     refreshChip();
   }
 
-  function hitPlayer() {
+  function hitPlayer(cause) {
     if (!player.alive || player.invuln > 0) return;
     if (player.shield) {
       player.shield = false;
@@ -1433,17 +1479,22 @@
       explode(player.x, player.y, '#5cd6ff', 16, 1);
       floatText(player.x, player.y - 24 * S, 'BARRIER DOWN', '#5cd6ff');
       Sound.hit();
+      Haptics.shieldHit();
       refreshChip();
       return;
     }
     player.alive = false;
     player.deadTimer = 1.6;
+    // Hold a short slow-motion beat naming the culprit, so a death teaches
+    // something instead of just costing a ship.
+    if (cause) G.killcam = { label: cause.label, x: cause.x, y: cause.y, t: 1.15 };
     breakCombo();
     G.lives--;
     updateLives();
     explode(player.x, player.y, '#9fd8ff', 34, 1.6);
     G.shake = 14;
     Sound.playerDie();
+    Haptics.shipLost();
     refreshChip();
     if (upLevel('vengeance')) detonateBomb();
   }
@@ -1558,6 +1609,11 @@
     el('comboFill').style.width = (100 * clamp(G.comboTimer / comboWindow(), 0, 1)) + '%';
   }
 
+  const RAIDER_NAME = {
+    grunt: 'a raider', wasp: 'an interceptor',
+    commander: 'a command craft', turret: 'a gun platform'
+  };
+
   const BOSS_HIT_ID = -1;      // stands in for the boss in a pierce hit list
 
   function collisions() {
@@ -1608,8 +1664,10 @@
     for (let i = G.eBullets.length - 1; i >= 0; i--) {
       const b = G.eBullets[i];
       if (hypot(b.x - player.x, b.y - player.y) < b.r + player.r * 0.8) {
+        const label = b.kind === 'missile' ? 'a homing missile'
+                    : b.src === 'boss' ? 'boss fire' : 'raider fire';
         G.eBullets.splice(i, 1);
-        hitPlayer();
+        hitPlayer({ label: label, x: b.x, y: b.y });
         return;
       }
     }
@@ -1619,8 +1677,9 @@
       const e = G.enemies[i];
       if (hypot(e.x - player.x, e.y - player.y) < e.def.r * S + player.r * 0.8) {
         explode(e.x, e.y, e.def.color, 16, 1.1);
+        const label = 'ramming ' + (RAIDER_NAME[e.type] || 'a raider');
         G.enemies.splice(i, 1);
-        hitPlayer();
+        hitPlayer({ label: label, x: e.x, y: e.y });
         return;
       }
     }
@@ -1628,9 +1687,12 @@
     // Boss body and beam
     if (G.boss) {
       const b = G.boss;
-      if (bossHit(b, player.x, player.y, player.r * 0.7)) { hitPlayer(); return; }
+      if (bossHit(b, player.x, player.y, player.r * 0.7)) {
+        hitPlayer({ label: 'colliding with the ' + b.name.toLowerCase(), x: b.x, y: b.y });
+        return;
+      }
       if (b.beam && b.beam.active && rayDist(player.x, player.y, b.x, b.y, b.beam.ang) < b.beam.w * 0.5 + player.r * 0.5) {
-        hitPlayer();
+        hitPlayer({ label: 'the beam', x: player.x, y: player.y });
       }
     }
   }
@@ -1758,6 +1820,7 @@
     addScore(bonus);
     announce('WAVE CLEAR', '+' + bonus.toLocaleString() + ' bonus');
     Sound.levelUp();
+    Haptics.waveClear();
     G.waveClearTimer = 2.0;
     G.state = 'clear';
   }
@@ -2755,6 +2818,73 @@
     ctx.globalAlpha = 1;
   }
 
+  /** Names the culprit and rings it, over a dimmed field. */
+  function drawKillcam() {
+    const k = G.killcam;
+    const fade = clamp(k.t / 0.25, 0, 1);          // ease out at the end
+    const grow = clamp(1 - k.t / 1.15, 0, 1);
+
+    ctx.save();
+    ctx.globalAlpha = 0.5 * fade;
+    ctx.fillStyle = '#03040c';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+
+    // Target ring on whatever landed the hit.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,90,43,' + (0.85 * fade) + ')';
+    ctx.lineWidth = 2.2 * S;
+    const rr = (16 + grow * 16) * S;
+    ctx.beginPath();
+    ctx.arc(k.x, k.y, rr, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 3 * S;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const a = i * (Math.PI / 2) + Math.PI / 4;
+      ctx.arc(k.x, k.y, rr, a - 0.18, a + 0.18);
+      ctx.moveTo(k.x, k.y);
+    }
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Caption, kept clear of the ring and fitted inside the screen: long
+    // labels are shrunk to fit, then centred as near the culprit as the
+    // edges allow.
+    const ty = k.y < H * 0.6 ? k.y + rr + 26 * S : k.y - rr - 20 * S;
+    const label = k.label.toUpperCase();
+    const margin = 12 * S;
+    const maxW = W - margin * 2;
+
+    ctx.globalAlpha = fade;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    let size = 17 * S;
+    ctx.font = '800 ' + Math.round(size) + 'px -apple-system, sans-serif';
+    let lw = ctx.measureText(label).width;
+    if (lw > maxW) {
+      size = Math.max(9 * S, size * maxW / lw);
+      ctx.font = '800 ' + Math.round(size) + 'px -apple-system, sans-serif';
+      lw = ctx.measureText(label).width;
+    }
+    const lx = clamp(k.x, margin + lw / 2, W - margin - lw / 2);
+
+    ctx.font = '700 ' + Math.round(10 * S) + 'px -apple-system, sans-serif';
+    ctx.fillStyle = 'rgba(180,196,224,.9)';
+    ctx.fillText('DESTROYED BY', lx, ty - 13 * S);
+
+    ctx.font = '800 ' + Math.round(size) + 'px -apple-system, sans-serif';
+    ctx.lineWidth = 3.5 * S;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(3,5,14,.85)';
+    ctx.strokeText(label, lx, ty + 6 * S);
+    ctx.fillStyle = '#ff8548';
+    ctx.fillText(label, lx, ty + 6 * S);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   function render() {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
@@ -2786,6 +2916,7 @@
       ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
     }
+    if (G.killcam) drawKillcam();
     if (G.shock) {
       // Bomb blast: a blue-white sphere that swells and thins as it goes.
       const k = G.shock.t / 0.75;
@@ -2814,35 +2945,43 @@
 
   function update(dt) {
     G.time += dt;
-    // Time warp slows the raiders and their shots — never the player.
-    if (G.slow > 0) G.slow = Math.max(0, G.slow - dt);
-    const edt = G.slow > 0 ? dt * 0.4 : dt;
 
-    updateStars(dt, G.state === 'menu' ? 1.8 : (G.slow > 0 ? 0.4 : 1));
-    updateEffects(dt);
+    // The post-mortem beat runs on real time while the field crawls.
+    if (G.killcam) {
+      G.killcam.t -= dt;
+      if (G.killcam.t <= 0) G.killcam = null;
+    }
+    const gdt = G.killcam ? dt * 0.16 : dt;
+
+    // Time warp slows the raiders and their shots — never the player.
+    if (G.slow > 0) G.slow = Math.max(0, G.slow - gdt);
+    const edt = G.slow > 0 ? gdt * 0.4 : gdt;
+
+    updateStars(gdt, G.state === 'menu' ? 1.8 : (G.slow > 0 ? 0.4 : 1));
+    updateEffects(gdt);
 
     if (G.state === 'menu' || G.state === 'over' || G.state === 'paused' ||
         G.state === 'upgrade') return;
 
     if (G.comboTimer > 0) {
-      G.comboTimer -= dt;
+      G.comboTimer -= gdt;
       if (G.comboTimer <= 0) breakCombo();
     }
     updateComboHud();
 
-    updatePlayer(dt);
-    updateBullets(dt, edt);
-    updatePowerups(dt);
+    updatePlayer(gdt);
+    updateBullets(gdt, edt);
+    updatePowerups(gdt);
 
     if (G.state === 'intro') {
-      G.introTimer -= dt;
+      G.introTimer -= gdt;
       if (G.introTimer <= 0) beginWaveCombat();
       return;
     }
 
     if (G.state === 'clear') {
       updateEnemies(edt);
-      G.waveClearTimer -= dt;
+      G.waveClearTimer -= gdt;
       if (G.waveClearTimer <= 0) {
         hideAnnounce();
         // The refit is the boss reward; ordinary waves roll straight on.
@@ -2862,11 +3001,11 @@
     const def = waveDef();
     if (def.boss) {
       if (G.bossDefeated) {
-        G.waveClearTimer -= dt;
+        G.waveClearTimer -= gdt;
         if (G.waveClearTimer <= 0) waveComplete();
       }
     } else if (G.enemies.length === 0 && G.spawnQueue.length === 0) {
-      G.waveClearTimer -= dt;
+      G.waveClearTimer -= gdt;
       if (G.waveClearTimer <= 0) waveComplete();
     }
   }
@@ -2939,6 +3078,7 @@
     G.slow = 0;
     G.flash = 0;
     G.shock = null;
+    G.killcam = null;
 
     el('hudScore').textContent = '0';
     el('hudWave').textContent = G.wave;   // the loadout screen sits over the HUD
@@ -2958,6 +3098,19 @@
     });
   }
 
+  /** Renders the run's cards as chips into `target`; hides it when empty. */
+  function renderBuild(target) {
+    if (!G.taken || !G.taken.length) { target.classList.add('hidden'); return; }
+    const counts = {};
+    for (const id of G.taken) counts[id] = (counts[id] || 0) + 1;
+    target.innerHTML = Object.keys(counts).map((id) => {
+      const c = cardById(id);
+      return '<span class="build-chip build-' + c.rarity + '">' + c.name +
+             (counts[id] > 1 ? ' ' + ROMAN[counts[id]] : '') + '</span>';
+    }).join('');
+    target.classList.remove('hidden');
+  }
+
   function pauseGame() {
     if (G.state !== 'play' && G.state !== 'intro' && G.state !== 'clear') return;
     G.pausedFrom = G.state;
@@ -2965,6 +3118,8 @@
     input.firing = false;
     drag = null;
     updateBombs();
+    renderBuild(el('pauseBuildChips'));
+    el('pauseBuild').classList.toggle('hidden', !(G.taken && G.taken.length));
     showScreen('paused');
   }
 
@@ -3012,20 +3167,7 @@
     el('scrapEarned').textContent = '+' + earned + ' scrap';
     el('scrapEarned').classList.toggle('hidden', !earned);
 
-    // Show what the run was built out of.
-    const build = el('runBuild');
-    if (G.taken && G.taken.length) {
-      const counts = {};
-      for (const id of G.taken) counts[id] = (counts[id] || 0) + 1;
-      build.innerHTML = Object.keys(counts).map((id) => {
-        const c = cardById(id);
-        return '<span class="build-chip build-' + c.rarity + '">' + c.name +
-               (counts[id] > 1 ? ' ' + ROMAN[counts[id]] : '') + '</span>';
-      }).join('');
-      build.classList.remove('hidden');
-    } else {
-      build.classList.add('hidden');
-    }
+    renderBuild(el('runBuild'));
 
     el('overTitle').textContent = 'Game Over';
     el('newBest').classList.toggle('hidden', !(G.score > (G.startBest || 0)));
@@ -3115,7 +3257,7 @@
   el('btnQuit').addEventListener('click', quitToMenu);
   el('btnResume').addEventListener('click', resumeGame);
   el('pauseBtn').addEventListener('click', pauseGame);
-  el('bombBtn').addEventListener('click', (e) => { e.preventDefault(); useBomb(); });
+
   el('btnHow').addEventListener('click', () => showScreen('howto'));
   el('btnHangar').addEventListener('click', () => { renderHangar(); showScreen('hangar'); });
   el('btnHangarBack').addEventListener('click', () => showScreen('menu'));
@@ -3126,6 +3268,8 @@
   togglePainters.push(bindToggle('btnAuto2', 'autoFire', 'Auto-fire'));
   togglePainters.push(bindToggle('btnSound', 'sound', 'Sound', () => { Sound.on = settings.sound; if (settings.sound) Sound.init(); }));
   togglePainters.push(bindToggle('btnSound2', 'sound', 'Sound', () => { Sound.on = settings.sound; if (settings.sound) Sound.init(); }));
+  togglePainters.push(bindToggle('btnHaptics', 'haptics', 'Rumble', () => { Haptics.on = settings.haptics; Haptics.buzz(20); }));
+  togglePainters.push(bindToggle('btnHaptics2', 'haptics', 'Rumble', () => { Haptics.on = settings.haptics; Haptics.buzz(20); }));
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) pauseGame();

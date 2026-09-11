@@ -77,6 +77,7 @@
       <div class="toggles">
         <button id="btnAuto" class="toggle" data-on="true">Auto-fire: ON</button>
         <button id="btnSound" class="toggle" data-on="true">Sound: ON</button>
+        <button id="btnHaptics" class="toggle" data-on="true">Rumble: ON</button>
       </div>
     </div>
   </section>
@@ -96,6 +97,8 @@
         <li><b>Refit</b> — beat a boss and you get two more picks. Cards are permanent upgrades that stack for the rest of the run; rarer ones are stronger, and <b>pacts</b> trade a real drawback for a bigger payoff. Tap a card or press <b>1</b>-<b>3</b>, and spend a reroll if you dislike the draw. Pacts only turn up after the first boss.</li>
         <li><b>Elites</b> — raiders ringed in gold take three times the punishment, are worth three times the score, and always drop a power-up.</li>
         <li><b>Scrap</b> — every run banks scrap based on score and how far you got. Spend it in the <b>Hangar</b> on permanent perks that carry into all future runs.</li>
+        <li><b>When you lose a ship</b> — the action drops into slow motion and names what destroyed you, so you can see the pattern that caught you out.</li>
+        <li><b>Pause</b> — the pause screen lists the cards you are carrying, and toggles auto-fire, sound and rumble.</li>
         <li><b>Power-ups</b> — shoot the red command craft and the armoured gun platforms to drop them. Losing a ship costs you whatever you were carrying.</li>
       </ul>
       <h3 class="legend-head">Weapons <span>one at a time — a new one replaces the last</span></h3>
@@ -152,10 +155,15 @@
   <section id="paused" class="screen">
     <div class="panel">
       <h2>Paused</h2>
+      <div id="pauseBuild" class="pause-build hidden">
+        <span class="pause-build-label">Your build</span>
+        <div id="pauseBuildChips" class="run-build"></div>
+      </div>
       <button id="btnResume" class="big-btn">Resume</button>
       <div class="toggles">
         <button id="btnAuto2" class="toggle" data-on="true">Auto-fire: ON</button>
         <button id="btnSound2" class="toggle" data-on="true">Sound: ON</button>
+        <button id="btnHaptics2" class="toggle" data-on="true">Rumble: ON</button>
       </div>
       <button id="btnQuit" class="big-btn ghost">Quit to Menu</button>
     </div>
