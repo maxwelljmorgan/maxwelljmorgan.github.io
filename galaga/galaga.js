@@ -273,8 +273,42 @@
     scrap: Store.get('scrap', 0),
     perks: Store.get('perks', {}),
     threat: Store.get('threat', 0),      // the level you are flying now
-    cleared: Store.get('cleared', -1)    // highest level whose campaign you finished
+    cleared: Store.get('cleared', -1),   // highest level whose campaign you finished
+    flown: Store.get('flown', {}),       // waves cleared with each patron fitted
+    keepsake: Store.get('keepsake', '')  // the one you are carrying
   };
+
+  /**
+   * Keepsakes. One item, chosen before launch, that shapes the run you are
+   * about to fly. A patron's keepsake is earned by flying with that patron,
+   * which turns "try the ones you have not used" into a reason to.
+   */
+  const KEEPSAKES = [
+    { id: 'chip',  name: 'Lucky Chip',   blurb: 'Launch with 60 salvage chips.' },
+    { id: 'manual', name: 'Field Manual', blurb: 'Launch with two extra refit rerolls.' },
+    { id: 'vulcan',  name: 'Banked Ember',   patron: 'vulcan',
+      blurb: 'Your first patron contact is VULCAN, and its flames burn half again as long.' },
+    { id: 'tempest', name: 'Storm Glass',    patron: 'tempest',
+      blurb: 'Your first patron contact is TEMPEST, and its arcs reach half again as far.' },
+    { id: 'hunter',  name: 'Notched Sight',  patron: 'hunter',
+      blurb: 'Your first patron contact is HUNTER, and its crits land more often.' },
+    { id: 'bulwark', name: 'Dented Plate',   patron: 'bulwark',
+      blurb: 'Your first patron contact is BULWARK, and it sweeps a wider field.' },
+    { id: 'siren',   name: 'Cracked Lens',   patron: 'siren',
+      blurb: 'Your first patron contact is SIREN, and its scrambles hold longer.' }
+  ];
+
+  const KEEP_NEED = 4;                  // waves flown with a patron to earn its keepsake
+  const keepsakeOwned = (k) => !k.patron || (records.flown[k.patron] || 0) >= KEEP_NEED;
+  const keepsake = () => G.keepsake;
+  const hasKeep = (id) => G.keepsake === id;
+
+  // A patron keepsake sharpens that patron's signature all run.
+  const burnBonus = () => (hasKeep('vulcan') ? 1.5 : 1);
+  const arcBonus = () => (hasKeep('tempest') ? 1.5 : 1);
+  const critBonus = () => (hasKeep('hunter') ? 0.08 : 0);
+  const deflectBonus = () => (hasKeep('bulwark') ? 1.45 : 1);
+  const scramBonus = () => (hasKeep('siren') ? 1.6 : 1);
 
   /**
    * Threat levels. Clearing the campaign at one unlocks the next, and each
@@ -431,6 +465,7 @@
     comboTimer: 0,
     lastMult: 1,
     conting: false,             // Contingency perk: one free hull this run
+    chips: 0,                   // salvage chips, spent in-run at a depot
     slots: {},                  // verb -> { patron, level }, the fitted boons
     arcs: [],                   // drawn lightning jumps, briefly
     fires: [],                  // burning ground left by a Vulcan roll
@@ -1344,11 +1379,20 @@
     detonateBomb();
   }
 
+  let chipShown = -1;
+  function updateChipHud() {
+    if (G.chips === chipShown) return;
+    chipShown = G.chips;
+    el('hudChips').textContent = G.chips;
+    el('chipWrap').classList.toggle('hidden', G.chips <= 0 && G.state !== 'depot');
+  }
+
   let dashShown = null;
   function updateDashHud() {
     const btn = el('dashBtn');
     const hide = G.state === 'menu' || G.state === 'over' || G.state === 'paused' ||
-                 G.state === 'upgrade' || G.state === 'sector' || !player.alive;
+                 G.state === 'upgrade' || G.state === 'sector' ||
+                 G.state === 'depot' || !player.alive;
     const ready = dashReady();
     const key = hide + '|' + ready;
     if (key === dashShown) return;
@@ -1362,7 +1406,8 @@
     el('bombCount').textContent = player.bombs;
     btn.classList.toggle('hidden', player.bombs <= 0 || G.state === 'menu' ||
                                    G.state === 'over' || G.state === 'paused' ||
-                                   G.state === 'upgrade' || G.state === 'sector');
+                                   G.state === 'upgrade' || G.state === 'sector' ||
+                                   G.state === 'depot');
   }
 
   /** Clears the screen: every shot gone, every raider hit at once. */
@@ -1928,6 +1973,13 @@
     if (upLevel('vengeance')) detonateBomb();
   }
 
+  /** Salvage chips: the in-run purse, distinct from the scrap you bank after. */
+  function addChips(n) {
+    if (n <= 0) return;
+    G.chips += n;
+    updateChipHud();
+  }
+
   function killEnemy(index) {
     const e = G.enemies[index];
     if (e.hasCaptive) freeCaptive();
@@ -1953,6 +2005,8 @@
                           r: 4 * S, color: '#ff5a2b', life: 2.4 });
       }
     }
+    // Wreckage pays. Elites are worth carrying a fight to.
+    if (!e.bonus) addChips(e.elite ? 3 : (Math.random() < 0.3 ? 1 : 0));
     Sound.kill();
     G.enemies.splice(index, 1);
   }
@@ -1967,6 +2021,7 @@
     common: { label: 'Common', weight: 58 },
     rare:   { label: 'Rare',   weight: 30 },
     boon:   { label: 'Boon',   weight: 46 },
+    duo:    { label: 'Duo',    weight: 34 },
     epic:   { label: 'Epic',   weight: 18 },
     pact:   { label: 'Pact',   weight: 20 }
   };
@@ -2013,6 +2068,40 @@
   ];
   for (const bn of BOONS) bn.rarity = 'boon';
 
+  /**
+   * Duos. Fly two patrons at once and a card appears that only makes sense
+   * with both of them — the reason to steer a draft rather than take the
+   * strongest thing on the table. They are global, not fitted to a verb.
+   */
+  const DUOS = [
+    { id: 'd_firestorm', pair: ['vulcan', 'tempest'], name: 'Firestorm',
+      blurb: 'Arcs set what they hit burning.' },
+    { id: 'd_kindling',  pair: ['vulcan', 'hunter'],  name: 'Kindling',
+      blurb: 'Burning raiders take double damage from the flames.' },
+    { id: 'd_forge',     pair: ['vulcan', 'bulwark'], name: 'Forge Shield',
+      blurb: 'Every shot you knock down bursts into fire.' },
+    { id: 'd_slowburn',  pair: ['vulcan', 'siren'],   name: 'Slow Burn',
+      blurb: 'Anything you set alight is scrambled too.' },
+    { id: 'd_chain',     pair: ['tempest', 'hunter'], name: 'Chain Lightning',
+      blurb: 'Arcs can land critical hits.' },
+    { id: 'd_ground',    pair: ['tempest', 'bulwark'], name: 'Grounding Rod',
+      blurb: 'Knocking a shot down throws a bolt at a raider.' },
+    { id: 'd_static',    pair: ['tempest', 'siren'],  name: 'Static Field',
+      blurb: 'Arcs scramble what they hit.' },
+    { id: 'd_counter',   pair: ['hunter', 'bulwark'], name: 'Counter Sniper',
+      blurb: 'Knocking a shot down loads a guaranteed crit.' },
+    { id: 'd_mark',      pair: ['hunter', 'siren'],   name: 'Easy Mark',
+      blurb: 'Scrambled raiders are twice as likely to take a crit.' },
+    { id: 'd_null',      pair: ['bulwark', 'siren'],  name: 'Null Field',
+      blurb: 'Scrambling a raider sweeps the fire around it.' }
+  ];
+  for (const d of DUOS) { d.rarity = 'duo'; d.cap = 1; d.duo = true; }
+
+  const hasDuo = (id) => upLevel(id) > 0;
+  /** A duo is on the table only once both of its patrons are actually fitted. */
+  const duoReady = (d) => d.pair.every((p) =>
+    Object.keys(SLOTS).some((k) => G.slots[k] && G.slots[k].patron === p));
+
   // The quartermaster's shelf: no patron, no slot, just the utility a run
   // still needs. These stack the way the old refit cards did.
   const UPGRADES = [
@@ -2044,7 +2133,7 @@
       blurb: 'Power-up drops are doubled.', cost: 'One more raider dives at a time.' }
   ];
 
-  const CARDS = BOONS.concat(UPGRADES, PACTS);
+  const CARDS = BOONS.concat(DUOS, UPGRADES, PACTS);
   const cardById = (id) => CARDS.find((c) => c.id === id);
 
   const ROMAN = ['', 'I', 'II', 'III', 'IV'];
@@ -2186,18 +2275,21 @@
 
   /** Sets a raider alight; damage lands once a second while it burns. */
   function applyBurn(e, level) {
-    e.burn = Math.max(e.burn || 0, 2.5 + 1.5 * level);
+    e.burn = Math.max(e.burn || 0, (2.5 + 1.5 * level) * burnBonus());
     e.burnTick = e.burnTick || 1;
+    if (hasDuo('d_slowburn')) applyScramble(e, level);   // Slow Burn
   }
 
   /** Slows a raider and spoils its aim. */
   function applyScramble(e, level) {
-    e.scram = Math.max(e.scram || 0, 2.2 + 1.2 * level);
+    const fresh = !(e.scram > 0);
+    e.scram = Math.max(e.scram || 0, (2.2 + 1.2 * level) * scramBonus());
+    if (fresh && hasDuo('d_null')) deflectNear(e.x, e.y, 120 * S);   // Null Field
   }
 
   /** Jumps a hit to the nearest other raider. */
   function applyArc(from, level, skip) {
-    let best = null, bestD = 150 * S * (1 + 0.25 * level);
+    let best = null, bestD = 150 * S * (1 + 0.25 * level) * arcBonus();
     for (const e of G.enemies) {
       if (e === skip || e.bonus) continue;
       const d = hypot(e.x - from.x, e.y - from.y);
@@ -2205,7 +2297,11 @@
     }
     if (!best) return;
     arcBolt(from.x, from.y, best.x, best.y, PATRONS.tempest.color);
-    damageRaider(best, 1, { noArc: true });
+    const o = { noArc: true };
+    if (hasDuo('d_chain')) o.critChance = 0.25;          // Chain Lightning
+    if (hasDuo('d_firestorm')) o.burnLevel = level;      // Firestorm
+    if (hasDuo('d_static')) o.scramLevel = level;        // Static Field
+    damageRaider(best, 1, o);
   }
 
   /** Knocks enemy fire out of the air around a point. */
@@ -2213,12 +2309,21 @@
     let hit = 0;
     for (let i = G.eBullets.length - 1; i >= 0; i--) {
       const b = G.eBullets[i];
-      if (hypot(b.x - x, b.y - y) > radius) continue;
+      if (hypot(b.x - x, b.y - y) > radius * deflectBonus()) continue;
       G.eBullets.splice(i, 1);
       explode(b.x, b.y, PATRONS.bulwark.color, 4, 0.5);
+      // Forge Shield: each shot knocked down bursts into fire.
+      if (hasDuo('d_forge')) {
+        G.fires.push({ x: b.x, y: b.y, r: 34 * S, t: 1.6, max: 1.6, lv: 1 });
+      }
       hit++;
     }
-    if (hit) Sound.tone(880, 0.07, 'square', 0.035, 520);
+    if (hit) {
+      Sound.tone(880, 0.07, 'square', 0.035, 520);
+      // Counter Sniper loads a crit; Grounding Rod throws the charge onward.
+      if (hasDuo('d_counter')) player.snap = Math.min(6, player.snap + hit);
+      if (hasDuo('d_ground')) applyArc({ x: x, y: y }, 1, null);
+    }
     return hit;
   }
 
@@ -2237,7 +2342,9 @@
     if (idx < 0) return false;
     let dmg = amount;
     let crit = false;
-    if (!o.noCrit && o.critChance && Math.random() < o.critChance) {
+    let chance = o.critChance || 0;
+    if (chance && hasDuo('d_mark') && e.scram > 0) chance *= 2;   // Easy Mark
+    if (!o.noCrit && chance && Math.random() < chance) {
       crit = true;
       dmg *= 3;
     }
@@ -2269,7 +2376,7 @@
         e.burnTick = 1;
         G.parts.push({ x: e.x + rand(-6, 6) * S, y: e.y, vx: rand(-10, 10) * S, vy: rand(-40, -10) * S,
                        life: 0.35, max: 0.35, size: rand(1.6, 3) * S, color: PATRONS.vulcan.color });
-        if (damageRaider(e, 1, { quiet: true, noArc: true })) continue;
+        if (damageRaider(e, hasDuo('d_kindling') ? 2 : 1, { quiet: true, noArc: true })) continue;
       }
     }
     for (let i = G.arcs.length - 1; i >= 0; i--) {
@@ -2331,7 +2438,7 @@
     if (p === 'vulcan') o.burnLevel = lv;
     if (p === 'tempest') o.arcLevel = lv;
     if (p === 'siren') o.scramLevel = lv;
-    if (p === 'hunter') o.critChance = 0.12 + 0.10 * lv;
+    if (p === 'hunter') o.critChance = 0.12 + 0.10 * lv + critBonus();
     if (player.snap > 0 && !fromWing) { o.critChance = 1; player.snap--; }
     return o;
   }
@@ -2512,6 +2619,20 @@
       Sound.powerup();
     }
 
+    // Credit the patrons that were fitted for the wave just finished.
+    if (!G.practice && G.wave > 1) {
+      let dirty = false;
+      for (const k of Object.keys(SLOTS)) {
+        const sl = G.slots[k];
+        if (!sl) continue;
+        if (!G.creditedWave || G.creditedWave < G.wave) {
+          records.flown[sl.patron] = (records.flown[sl.patron] || 0) + 1;
+          dirty = true;
+        }
+      }
+      if (dirty) { G.creditedWave = G.wave; Store.set('flown', records.flown); }
+    }
+
     if (!G.practice && G.wave > records.bestWave) {
       records.bestWave = G.wave;
       Store.set('bestWave', G.wave);
@@ -2577,10 +2698,13 @@
     let eligible = CARDS.filter((c) => upLevel(c.id) < c.cap &&
                                        !(noPacts && c.rarity === 'pact') &&
                                        !(c.id === 'spare' && livesFull()) &&
-                                       !(c.patron && patronLocked(c)));
-    // A patron contact offers only that patron's boons — the door said so.
+                                       !(c.patron && patronLocked(c)) &&
+                                       !(c.duo && !duoReady(c)));
+    // A patron contact offers only that patron's boons — the door said so —
+    // but a duo it has just made possible still gets a seat.
     if (patron) {
-      const own = eligible.filter((c) => c.patron === patron);
+      const own = eligible.filter((c) => c.patron === patron ||
+                                         (c.duo && c.pair.indexOf(patron) >= 0));
       if (own.length) eligible = own;
     }
     const taken = [];
@@ -2623,13 +2747,22 @@
       const owned = lvl > 0 ? '<span class="up-owned">have ' + ROMAN[lvl] + '</span>' : '';
       const cost = c.cost ? '<span class="up-cost">' + c.cost + '</span>' : '';
       const pat = c.patron ? PATRONS[c.patron] : null;
-      const head = pat
-        ? '<span class="up-rarity" style="color:' + pat.color + '">' + pat.name +
-          ' &middot; ' + SLOTS[c.slot].name + '</span>'
-        : '<span class="up-rarity">' + RARITY[c.rarity].label + '</span>';
+      let head;
+      if (c.duo) {
+        // A duo names both patrons, each in its own colour.
+        head = '<span class="up-rarity up-duo-head">' + c.pair.map((k) =>
+          '<span style="color:' + PATRONS[k].color + '">' + PATRONS[k].name + '</span>'
+        ).join(' <b>+</b> ') + '</span>';
+      } else if (pat) {
+        head = '<span class="up-rarity" style="color:' + pat.color + '">' + pat.name +
+               ' &middot; ' + SLOTS[c.slot].name + '</span>';
+      } else {
+        head = '<span class="up-rarity">' + RARITY[c.rarity].label + '</span>';
+      }
       const swap = displacedBy(c)
         ? '<span class="up-swap">replaces ' + displacedBy(c) + ' on ' + SLOTS[c.slot].name + '</span>' : '';
-      const style = pat ? ' style="border-color:' + pat.color + '88;background:' + pat.color + '14"' : '';
+      const style = c.duo ? ''
+        : (pat ? ' style="border-color:' + pat.color + '88;background:' + pat.color + '14"' : '');
       return '<button class="up-card up-' + c.rarity + '" data-i="' + i + '"' + style + '>' +
              '<span class="up-key">' + (i + 1) + '</span>' + head +
              '<span class="up-name"' + (pat ? ' style="color:' + pat.color + '"' : '') + '>' + c.name + tier + '</span>' +
@@ -3877,7 +4010,7 @@
     updateEffects(gdt);
 
     if (G.state === 'menu' || G.state === 'over' || G.state === 'paused' ||
-        G.state === 'upgrade' || G.state === 'sector') return;
+        G.state === 'upgrade' || G.state === 'sector' || G.state === 'depot') return;
 
     if (G.comboTimer > 0) {
       G.comboTimer -= gdt;
@@ -3962,7 +4095,7 @@
   // 15. Screens and run control
   // =========================================================
 
-  const SCREENS = ['menu', 'howto', 'paused', 'gameover', 'upgrade', 'sector', 'hangar'];
+  const SCREENS = ['menu', 'howto', 'paused', 'gameover', 'upgrade', 'sector', 'depot', 'hangar'];
 
   function showScreen(id) {
     for (const s of SCREENS) el(s).classList.toggle('active', s === id);
@@ -3981,18 +4114,23 @@
     G.score = 0;
     G.wave = start;
     G.loop = 1 + Math.floor((start - 1) / WAVES.length);
+    G.keepsake = records.keepsake || '';
+    G.creditedWave = 0;
+    G.firstContact = !!KEEPSAKES.find((k) => k.id === G.keepsake && k.patron);
     G.threat = clamp(records.threat, 0, threatUnlocked());
     G.restocked = false;
     G.thinDraw = 0;
     G.waveTime = 0;
     G.mod = null;
     G.slots = {};
+    G.chips = hasKeep('chip') ? 60 : 0;
+    chipShown = -1;
     G.pending = null;
     G.doors = null;
     G.arcs.length = 0;
     G.fires.length = 0;
     G.lives = Math.max(1, Math.min(LIFE_CAP, 3 + perkLevel('reserve') - threatShips()));
-    G.rerolls = 1 + perkLevel('dice');
+    G.rerolls = 1 + perkLevel('dice') + (hasKeep('manual') ? 2 : 0);
     G.taken = [];
     G.startBest = records.best;
     G.enemies.length = 0;
@@ -4047,6 +4185,7 @@
     updateComboHud();
     slotKey = null;
     refreshSlotHud();
+    updateChipHud();
     el('hud').classList.remove('hidden');
     showScreen(null);
     // Every run opens with a loadout pick, so the build layer is visible
@@ -4072,10 +4211,12 @@
                ';color:' + pat.color + '">' + SLOTS[k].name + ': ' + pat.name +
                (sl.level > 1 ? ' ' + ROMAN[sl.level] : '') + '</span>';
       });
+    const duos = G.taken.filter((id) => { const c = cardById(id); return c && c.duo; })
+      .map((id) => '<span class="build-chip build-duo">' + cardById(id).name + '</span>');
     const counts = {};
     for (const id of G.taken) {
       const c = cardById(id);
-      if (!c || c.patron) continue;         // boons are shown by slot above
+      if (!c || c.patron || c.duo) continue;   // shown by slot, or above
       counts[id] = (counts[id] || 0) + 1;
     }
     const rest = Object.keys(counts).map((id) => {
@@ -4083,8 +4224,8 @@
       return '<span class="build-chip build-' + c.rarity + '">' + c.name +
              (counts[id] > 1 ? ' ' + ROMAN[counts[id]] : '') + '</span>';
     });
-    if (!fitted.length && !rest.length) { target.classList.add('hidden'); return; }
-    target.innerHTML = fitted.concat(rest).join('');
+    if (!fitted.length && !duos.length && !rest.length) { target.classList.add('hidden'); return; }
+    target.innerHTML = fitted.concat(duos, rest).join('');
     target.classList.remove('hidden');
   }
 
@@ -4117,7 +4258,9 @@
     { kind: 'arms',  weight: 16, label: 'Munitions Depot', icon: '\u25c9', note: () => 'Two smart bombs' },
     { kind: 'cache', weight: 12, label: 'Salvage Cache',  icon: '\u25c6', note: () => 'A refit reroll and a score bounty' },
     { kind: 'trial', weight: 16, label: 'Contested Space', icon: '\u2739',
-      note: () => 'Fought under a condition \u2014 pays two boons' }
+      note: () => 'Fought under a condition \u2014 pays two boons' },
+    { kind: 'depot', weight: 20, label: 'Supply Run',       icon: '\u2318',
+      note: () => 'Fight through to a depot and spend your chips' }
   ];
 
   /** Draws the doors for the next wave: distinct kinds, patron picked per door. */
@@ -4133,7 +4276,9 @@
       pool.splice(pool.indexOf(chosen), 1);
       const door = { kind: chosen.kind, label: chosen.label, icon: chosen.icon, def: chosen };
       if (chosen.kind === 'boon' || chosen.kind === 'trial') {
-        door.patron = pick(Object.keys(PATRONS));
+        const keep = KEEPSAKES.find((k) => k.id === G.keepsake && k.patron);
+        if (keep && G.firstContact) { door.patron = keep.patron; G.firstContact = false; }
+        else door.patron = pick(Object.keys(PATRONS));
       }
       out.push(door);
     }
@@ -4199,12 +4344,123 @@
       floatText(player.x, player.y - 34 * S, 'SALVAGE CACHE', '#ffd166');
       Sound.powerup(); then(); return;
     }
+    if (d.kind === 'depot') { openDepot(then); return; }
     // Both remaining kinds pay in boons, drawn from the door's patron.
     offerUpgrade(d.kind === 'trial' ? 2 : 1, then, {
       title: PATRONS[d.patron].name,
       sub: 'This patron ' + PATRONS[d.patron].blurb + '. Fit it to a verb.',
       patron: d.patron
     });
+  }
+
+  // =========================================================
+  //  The depot
+  //  Chips buy exactly what a run is short of, which is the
+  //  half of a roguelite economy a post-run currency cannot do.
+  // =========================================================
+
+  const DEPOT = [
+    { id: 'boon',   name: 'Patron Contract', cost: 55,
+      note: () => 'A boon from a patron of your choosing' },
+    { id: 'hull',   name: 'Hull Section',    cost: 70, note: () => 'One ship back in reserve' },
+    { id: 'bombs',  name: 'Munitions',       cost: 35, note: () => 'Two smart bombs' },
+    { id: 'reroll', name: 'Requisition',     cost: 28, note: () => 'Two refit rerolls' },
+    { id: 'strip',  name: 'Strip a Mount',   cost: 40,
+      note: () => 'Clear a fitted verb so a new patron can take it' }
+  ];
+
+  const depotCost = (it) => it.cost;
+
+  function openDepot(then) {
+    G.depotNext = then;
+    G.depotStrip = false;
+    renderDepot();
+    hideAnnounce();
+    G.state = 'depot';
+    updateChipHud();
+    showScreen('depot');
+  }
+
+  function renderDepot() {
+    el('depotChips').textContent = G.chips;
+    if (G.depotStrip) {
+      // Second step of Strip a Mount: which verb are we clearing?
+      const fitted = Object.keys(SLOTS).filter((k) => G.slots[k]);
+      el('depotList').innerHTML = fitted.map((k) => {
+        const pat = PATRONS[G.slots[k].patron];
+        return '<button class="depot-item" data-strip="' + k + '" style="border-color:' + pat.color + '88">' +
+               '<span class="depot-name" style="color:' + pat.color + '">' + SLOTS[k].name + ' \u2014 ' + pat.name + '</span>' +
+               '<span class="depot-note">Clear this mount</span>' +
+               '<span class="depot-cost">strip</span></button>';
+      }).join('') || '<p class="muted">Nothing is fitted yet.</p>';
+    } else {
+      el('depotList').innerHTML = DEPOT.map((it) => {
+        const cost = depotCost(it);
+        const afford = G.chips >= cost;
+        const dead = it.id === 'strip' && !Object.keys(SLOTS).some((k) => G.slots[k]);
+        return '<button class="depot-item" data-id="' + it.id + '"' +
+               (afford && !dead ? '' : ' disabled') + '>' +
+               '<span class="depot-name">' + it.name + '</span>' +
+               '<span class="depot-note">' + it.note() + '</span>' +
+               '<span class="depot-cost">' + cost + '</span></button>';
+      }).join('');
+    }
+    for (const btn of el('depotList').querySelectorAll('[data-id]')) {
+      btn.addEventListener('click', () => buyDepot(btn.dataset.id));
+    }
+    for (const btn of el('depotList').querySelectorAll('[data-strip]')) {
+      btn.addEventListener('click', () => stripSlot(btn.dataset.strip));
+    }
+  }
+
+  function buyDepot(id) {
+    if (G.state !== 'depot') return;
+    const it = DEPOT.find((x) => x.id === id);
+    if (!it || G.chips < depotCost(it)) return;
+    if (id === 'strip') { G.depotStrip = true; renderDepot(); return; }
+    G.chips -= depotCost(it);
+    updateChipHud();
+    Sound.powerup();
+    if (id === 'hull') { if (!grantLife(1)) addScore(2000); }
+    if (id === 'bombs') { player.bombs = Math.min(bombCap(), player.bombs + 2); updateBombs(); }
+    if (id === 'reroll') G.rerolls += 2;
+    if (id === 'boon') {
+      // Buying a contract closes the depot and opens the refit on your terms:
+      // every patron on the table, not just the one a door happened to name.
+      const then = G.depotNext;
+      G.depotNext = null;
+      showScreen(null);
+      offerUpgrade(1, then, { title: 'Patron Contract', sub: 'Bought and paid for. Fit it to a verb.' });
+      return;
+    }
+    renderDepot();
+  }
+
+  function stripSlot(slot) {
+    const held = G.slots[slot];
+    if (!held) return;
+    G.chips -= depotCost(DEPOT.find((x) => x.id === 'strip'));
+    for (const bn of BOONS) {
+      if (bn.slot === slot && bn.patron === held.patron) delete G.upgrades[bn.id];
+    }
+    delete G.slots[slot];
+    G.taken = G.taken.filter((id) => {
+      const c = cardById(id);
+      return !(c && c.slot === slot && c.patron === held.patron);
+    });
+    G.depotStrip = false;
+    refreshSlotHud();
+    updateChipHud();
+    Sound.powerup();
+    renderDepot();
+  }
+
+  function leaveDepot() {
+    if (G.state !== 'depot') return;
+    const then = G.depotNext;
+    G.depotNext = null;
+    showScreen(null);
+    if (then) then();
   }
 
   function pauseGame() {
@@ -4229,6 +4485,7 @@
 
   function quitToMenu() {
     G.state = 'menu';
+    el('chipWrap').classList.add('hidden');
     G.doors = null;
     G.pending = null;
     hideHeat();
@@ -4334,6 +4591,49 @@
     el('menuBest').textContent = records.best.toLocaleString();
     el('menuWave').textContent = records.bestWave;
     renderThreatPick();
+    renderKeepsakes();
+  }
+
+  /**
+   * The keepsake shelf. Patron keepsakes stay dark until you have flown that
+   * patron enough, so the shelf doubles as a record of what you have tried.
+   */
+  function renderKeepsakes() {
+    const wrap = el('keepPick');
+    // Hold the shelf back until a run has actually been flown: a brand new
+    // player has no idea what a patron is yet.
+    const any = records.bestWave > 1 && KEEPSAKES.some(keepsakeOwned);
+    wrap.classList.toggle('hidden', !any);
+    if (!any) return;
+    const cur0 = KEEPSAKES.find((k) => k.id === records.keepsake);
+    if (records.keepsake && (!cur0 || !keepsakeOwned(cur0))) {
+      records.keepsake = ''; Store.set('keepsake', '');
+    }
+    el('keepList').innerHTML = KEEPSAKES.map((k) => {
+      const owned = keepsakeOwned(k);
+      const on = records.keepsake === k.id;
+      const pat = k.patron ? PATRONS[k.patron] : null;
+      const tint = pat ? pat.color : '#ffc94d';
+      const need = KEEP_NEED - (records.flown[k.patron] || 0);
+      return '<button class="keep' + (on ? ' on' : '') + (owned ? '' : ' locked') + '"' +
+             ' data-id="' + k.id + '"' + (owned ? '' : ' disabled') +
+             (on ? ' style="border-color:' + tint + ';color:' + tint + '"' : '') + '>' +
+             (owned ? k.name : '\ud83d\udd12 ' + k.name) +
+             (owned ? '' : '<i>' + need + ' more with ' + PATRONS[k.patron].name + '</i>') +
+             '</button>';
+    }).join('');
+    const cur = KEEPSAKES.find((k) => k.id === records.keepsake);
+    el('keepBlurb').textContent = cur ? cur.blurb : 'Fly with a patron to earn its keepsake.';
+    for (const btn of el('keepList').querySelectorAll('.keep[data-id]')) {
+      btn.addEventListener('click', () => pickKeepsake(btn.dataset.id));
+    }
+  }
+
+  function pickKeepsake(id) {
+    records.keepsake = records.keepsake === id ? '' : id;   // tap again to put it back
+    Store.set('keepsake', records.keepsake);
+    Sound.powerup();
+    renderKeepsakes();
   }
 
   /**
@@ -4421,6 +4721,7 @@
 
   el('btnHow').addEventListener('click', () => showScreen('howto'));
   el('btnHangar').addEventListener('click', () => { renderHangar(); showScreen('hangar'); });
+  el('depotLeave').addEventListener('click', leaveDepot);
   el('threatUp').addEventListener('click', () => stepThreat(1));
   el('threatDown').addEventListener('click', () => stepThreat(-1));
   el('btnHangarBack').addEventListener('click', () => showScreen('menu'));

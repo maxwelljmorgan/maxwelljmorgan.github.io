@@ -45,6 +45,7 @@
     <div class="hud-row second">
       <div id="hudLives" class="lives"></div>
       <div id="hudSlots" class="slots hidden"></div>
+      <div id="chipWrap" class="chips hidden"><span class="chip-glyph">&#9670;</span><span id="hudChips">0</span></div>
       <div id="hudPowerup" class="powerup-chip hidden"></div>
       <button id="pauseBtn" class="icon-btn" aria-label="Pause">❚❚</button>
     </div>
@@ -84,6 +85,11 @@
         <div><span class="k">Best Wave</span><span id="menuWave" class="v">1</span></div>
         <div><span class="k">Scrap</span><span id="menuScrap" class="v">0</span></div>
       </div>
+      <div id="keepPick" class="keepsakes hidden">
+        <span class="threat-label">Keepsake</span>
+        <div id="keepList" class="keep-list"></div>
+        <span id="keepBlurb" class="threat-blurb"></span>
+      </div>
       <div id="threatPick" class="threat hidden">
         <span class="threat-label">Threat Level</span>
         <div class="threat-row">
@@ -111,7 +117,10 @@
         <li><b>Shoot</b> — auto-fire is on by default. Turn it off to tap-to-fire, or use <b>Space</b> and arrow keys on a desktop.</li>
         <li><b>Barrel roll</b> — tap the pad bottom-right (or <b>Shift</b>/<b>C</b>). You cannot be shot down mid-roll. It is your only defence, and the best place to put a patron's boon.</li>
         <li><b>Patrons</b> — five of them, each doing one visible thing: <b>Vulcan</b> burns, <b>Tempest</b> arcs to a second raider, <b>Hunter</b> crits, <b>Bulwark</b> knocks fire out of the air, <b>Siren</b> scrambles. A boon fits a patron to one of your verbs — Cannon, Wing, Bomb, Hull or Roll — and each verb holds one patron at a time, so taking a new boon replaces what was there.</li>
-        <li><b>Sectors</b> — after each wave you choose where to go next, and the reward is shown before you commit: a named patron's boon, a repair, munitions, a salvage cache, or contested space that is harder but pays double.</li>
+        <li><b>Sectors</b> — after each wave you choose where to go next, and the reward is shown before you commit: a named patron's boon, a repair, munitions, a salvage cache, contested space that is harder but pays double, or a supply run to a depot.</li>
+        <li><b>Duos</b> — fly two patrons at once and a card appears that only works with both: arcs that set fires, crits that chain, deflections that throw lightning. They are the reason to steer a draft rather than take the strongest card on the table.</li>
+        <li><b>Chips</b> — raiders drop salvage chips as they die. They die with the run, so spend them at a depot on a boon, a hull, bombs, rerolls, or stripping a mount to free a verb for a different patron.</li>
+        <li><b>Keepsakes</b> — once you have finished a run, pick one item on the menu before launch. Each patron's keepsake is earned by flying with that patron, and steers your first contact toward them.</li>
         <li><b>Formations</b> — clear every raider in the wave to advance. Diving enemies are worth double.</li>
         <li><b>Ships</b> — you start with three in reserve and can never hold more than five. At five, extra lives stop dropping and pay points instead.</li>
         <li><b>Losses carry</b> — dying sweeps only the shots right on top of you, not the whole screen, and each ship lost costs a reroll, then a card off your next refit table. You get one emergency hull a run, and only if a boss would otherwise be met on your last ship.</li>
@@ -186,6 +195,17 @@
       <h2>Choose your approach</h2>
       <p class="muted upgrade-sub">Each sector pays differently. Pick the one your run needs.</p>
       <div id="sectorCards" class="doors"></div>
+    </div>
+  </section>
+
+  <!-- =========================== DEPOT =========================== -->
+  <section id="depot" class="screen">
+    <div class="panel upgrade-panel">
+      <h2>Depot</h2>
+      <p class="muted upgrade-sub">Salvage chips die with the run. Spend them.</p>
+      <div class="scrap-bank"><span class="k">Chips</span><span id="depotChips" class="v">0</span></div>
+      <div id="depotList" class="depot-list"></div>
+      <button id="depotLeave" class="big-btn ghost">Move on</button>
     </div>
   </section>
 
