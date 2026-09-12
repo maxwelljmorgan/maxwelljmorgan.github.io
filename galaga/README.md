@@ -57,6 +57,9 @@ made from the game loop rather than from a tap may be ignored.
   12 the campaign loops with faster, tougher, higher-HP raiders.
 - **Loadout** — every run opens with two free picks from three cards, before
   wave 1, so you are always building toward something.
+- **Roll** — tap the pad on the right (or `Shift`/`C`) to barrel roll. You
+  cannot be shot down mid-roll. It is the only defensive verb, and the slot
+  most worth a patron's boon.
 - **Refit** — beating a boss earns two more picks. Cards stack, last the
   whole run, and drop out of the pool once maxed, so no two runs build the
   same way. A full table always seats one pact, so there is always a
@@ -67,6 +70,47 @@ made from the game loop rather than from a tap may be ignored.
 - **Power-ups** — scarce by design. Every elite leaves one behind; beyond
   that only red command craft and armoured gun platforms roll for a drop,
   and they rarely do. Losing a ship costs you whatever you were carrying.
+
+## Patrons and slots
+
+Five patrons back your run, and each does one visible thing. A boon fits a
+patron's signature to one of your verbs, and **a verb holds one patron at a
+time** — taking a new boon for a slot replaces what was there, and the card
+says so before you pick it. A refit is a composition, not a pile of
+percentages.
+
+| Patron | Signature |
+| --- | --- |
+| VULCAN | Sets raiders burning — damage over time |
+| TEMPEST | Arcs to a second raider |
+| HUNTER | Lands critical hits at triple damage |
+| BULWARK | Knocks incoming fire out of the air |
+| SIREN | Scrambles raiders: slow, and unable to lead you |
+
+The verbs are **Cannon**, **Wing** (drones), **Bomb**, **Hull** (what
+happens when you are hit) and **Roll**. The same patron plays completely
+differently depending on where you fit it: Bulwark on the Cannon shoots
+enemy fire down, Bulwark on the Hull eats the first hit of every wave,
+Bulwark on the Roll sweeps the screen clear as you pass through it.
+
+Alongside the boons, the quartermaster's shelf still carries the flat
+utility a run needs — spare ships, bomb racks, fire rate — and pacts.
+
+## Sector doors
+
+After every ordinary wave you choose the next sector, with its reward shown
+before you commit:
+
+| Sector | Pays |
+| --- | --- |
+| Patron Contact | A boon from the named patron |
+| Repair Dock | A ship back in reserve |
+| Munitions Depot | Two smart bombs |
+| Salvage Cache | A refit reroll and a score bounty |
+| Contested Space | Fought under a forced condition — pays two boons |
+
+The reward lands when that wave is cleared, so the route through a run is
+chosen rather than handed to you. Boss waves pay their own refit as before.
 
 ## Threat levels
 

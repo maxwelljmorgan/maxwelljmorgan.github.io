@@ -431,6 +431,9 @@
     comboTimer: 0,
     lastMult: 1,
     conting: false,             // Contingency perk: one free hull this run
+    slots: {},                  // verb -> { patron, level }, the fitted boons
+    arcs: [],                   // drawn lightning jumps, briefly
+    fires: [],                  // burning ground left by a Vulcan roll
     mod: null,                  // this wave's condition, if it drew one
     threat: 0,                  // ascension level this run is flying
     restocked: false,           // the one emergency hull, already spent?
@@ -457,6 +460,12 @@
     wingmen: 0,
     drones: [],
     bombs: 0,                   // smart bombs held, spent on demand
+    dash: 0,                    // seconds left in the roll
+    dashDir: 1,                 // which way the roll is carrying us
+    dashCool: 0,                // seconds until the next roll
+    dashSpin: 0,                // visual roll angle
+    deflect: 0,                 // Bulwark bomb bubble, seconds left
+    snap: 0,                    // Hunter: the guaranteed crit after a roll
     dual: false,                // flying as a recovered pair
     deadTimer: 0,
     thrust: 0
@@ -508,12 +517,14 @@
   const TAP_SLOP = 12;        // px of travel still counted as a tap
   const TAP_TIME = 450;       // ms held before it stops being a tap
 
-  function overBombButton(clientX, clientY) {
-    const btn = el('bombBtn');
+  function overButton(id, clientX, clientY) {
+    const btn = el(id);
     if (btn.classList.contains('hidden')) return false;
     const r = btn.getBoundingClientRect();
     return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
   }
+  const overBombButton = (x, y) => overButton('bombBtn', x, y);
+  const overDashButton = (x, y) => overButton('dashBtn', x, y);
 
   canvas.addEventListener('pointerdown', (e) => {
     if (G.state !== 'play' && G.state !== 'intro' && G.state !== 'clear' &&
@@ -524,6 +535,7 @@
     drag = {
       id: e.pointerId, px: p.x, py: p.y, sx: player.tx, sy: player.ty,
       onBomb: overBombButton(e.clientX, e.clientY),
+      onDash: overDashButton(e.clientX, e.clientY),
       moved: 0, t0: performance.now()
     };
     input.firing = true;
@@ -542,8 +554,9 @@
     if (!drag || (e && e.pointerId !== drag.id)) return;
     // A short, still press that began on the bomb button spends a bomb;
     // anything longer or further was the player flying, so leave it alone.
-    if (drag.onBomb && drag.moved < TAP_SLOP && performance.now() - drag.t0 < TAP_TIME) {
-      useBomb();
+    if (drag.moved < TAP_SLOP && performance.now() - drag.t0 < TAP_TIME) {
+      if (drag.onBomb) useBomb();
+      else if (drag.onDash) useDash();
     }
     drag = null;
     input.firing = false;
@@ -562,8 +575,10 @@
       case 'KeyR': if (G.state === 'upgrade') rerollOffer(); break;
       case 'Digit1': case 'Digit2': case 'Digit3':
         if (G.state === 'upgrade') takeUpgrade(Number(e.code.slice(5)) - 1);
+        else if (G.state === 'sector') takeSector(Number(e.code.slice(5)) - 1);
         break;
       case 'KeyB': useBomb(); break;
+      case 'ShiftLeft': case 'ShiftRight': case 'KeyC': useDash(); break;
       case 'KeyP': case 'Escape':
         if (G.state === 'play') pauseGame();
         else if (G.state === 'paused') resumeGame();
@@ -899,7 +914,7 @@
       const slot = slotPos(s.row, s.col);
       e.path = entryPath(s.style, s.side, { x: slot.x, y: slot.y });
       e.d = 0;
-      e.speed = 300 * S * e.def.speed * loopMul();
+      e.speed = 300 * S * e.def.speed * loopMul() * scramMul(e);
       e.mode = 'path';
       e.onArrive = 'formation';
       e.x = e.path.pts[0].x;
@@ -971,11 +986,14 @@
     e.mode = 'path';
     e.path = divePath(e);
     e.d = 0;
-    e.speed = (250 + 55 * Math.min(G.wave, 8)) * S * e.def.speed * 0.55 * loopMul();
+    e.speed = (250 + 55 * Math.min(G.wave, 8)) * S * e.def.speed * 0.55 * loopMul() * scramMul(e);
     e.onArrive = 'return';
     e.inFormation = false;
     e.fireTimer = rand(0.25, 0.6);
   }
+
+  /** A scrambled raider crawls; everything that moves one reads this. */
+  const scramMul = (e) => (e && e.scram > 0 ? 0.45 : 1);
 
   function updateEnemies(dt) {
     const def = waveDef();
@@ -1096,8 +1114,8 @@
   // 9. Projectiles and power-ups
   // =========================================================
 
-  function bolt(x, y, vx, vy, r) {
-    G.pBullets.push({ x: x, y: y, vx: vx, vy: vy, r: r || 3.2 * S });
+  function bolt(x, y, vx, vy, r, wing) {
+    G.pBullets.push({ x: x, y: y, vx: vx, vy: vy, r: r || 3.2 * S, wing: !!wing });
   }
 
   function playerShoot() {
@@ -1134,14 +1152,15 @@
       }
     }
     if (player.wingmen > 0) {
-      for (const d of player.drones) bolt(d.x, d.y - 8 * S, 0, -speed * 0.94, 2.6 * S);
+      for (const d of player.drones) bolt(d.x, d.y - 8 * S, 0, -speed * 0.94, 2.6 * S, true);
     }
     Sound.shoot();
   }
 
   function enemyShoot(e, mul, aimed) {
-    const speed = 215 * S * (mul || 1);
+    const speed = 215 * S * (mul || 1) * scramMul(e);
     let vx = 0, vy = speed;
+    if (aimed && e && e.scram > 0) aimed = false;   // scrambled: it cannot lead you
     if (aimed) {
       const a = Math.atan2(player.y - e.y, player.x - e.x);
       vx = Math.cos(a) * speed;
@@ -1285,6 +1304,38 @@
     refreshChip();
   }
 
+  // The barrel roll: a short burst sideways that cannot be shot down. It is
+  // the game's only defensive verb, and the slot most worth a patron's boon.
+  const DASH_TIME = 0.32;
+  const DASH_COOL = 1.6;
+  const dashCooldown = () => DASH_COOL * (1 - 0.25 * upLevel('rollcage'));
+  const dashReady = () => player.dashCool <= 0 && player.dash <= 0 && player.alive;
+
+  function useDash() {
+    if (!dashReady() || G.state !== 'play') return;
+    // Roll the way you are already leaning, or away from the nearer wall.
+    const lean = player.tx - player.x;
+    player.dashDir = Math.abs(lean) > 2 ? Math.sign(lean) : (player.x < W / 2 ? 1 : -1);
+    player.dash = DASH_TIME;
+    player.dashCool = dashCooldown();
+    player.dashSpin = 0;
+    onDashStart();
+    Sound.tone(320, 0.16, 'triangle', 0.05, 760);
+    Haptics.glanced();
+  }
+
+  function updateDash(dt) {
+    if (player.dashCool > 0) player.dashCool -= dt;
+    if (player.dash <= 0) return;
+    player.dash -= dt;
+    player.dashSpin += dt * 22;
+    const step = 620 * S * dt * player.dashDir;
+    player.x = clamp(player.x + step, 16 * S, W - 16 * S);
+    player.tx = player.x;
+    onDashTick(dt);
+    if (player.dash <= 0) player.dashSpin = 0;
+  }
+
   /** Spends one held bomb, if there is one and the ship is flying. */
   function useBomb() {
     if (player.bombs <= 0 || !player.alive || G.state !== 'play') return;
@@ -1293,12 +1344,25 @@
     detonateBomb();
   }
 
+  let dashShown = null;
+  function updateDashHud() {
+    const btn = el('dashBtn');
+    const hide = G.state === 'menu' || G.state === 'over' || G.state === 'paused' ||
+                 G.state === 'upgrade' || G.state === 'sector' || !player.alive;
+    const ready = dashReady();
+    const key = hide + '|' + ready;
+    if (key === dashShown) return;
+    dashShown = key;
+    btn.classList.toggle('hidden', hide);
+    btn.classList.toggle('cooling', !ready);
+  }
+
   function updateBombs() {
     const btn = el('bombBtn');
     el('bombCount').textContent = player.bombs;
     btn.classList.toggle('hidden', player.bombs <= 0 || G.state === 'menu' ||
                                    G.state === 'over' || G.state === 'paused' ||
-                                   G.state === 'upgrade');
+                                   G.state === 'upgrade' || G.state === 'sector');
   }
 
   /** Clears the screen: every shot gone, every raider hit at once. */
@@ -1316,7 +1380,19 @@
       addScore(Math.round(e.def.pts * comboMult()));
       G.enemies.splice(i, 1);
     }
-    if (G.boss) damageBoss(10);
+    // The Bomb slot: the formation is already gone, so the patron aims at the
+    // boss, the ground, and the seconds after the blast.
+    const p = slotPatron('bomb'), lv = slotLevel('bomb');
+    let bossDmg = 10;
+    if (p === 'vulcan') {
+      G.fires.push({ x: player.x, y: player.y - 90 * S, r: 150 * S, t: 5 + 2 * lv, max: 7, lv: lv + 1 });
+      bossDmg += 2 * lv;
+    }
+    if (p === 'tempest') bossDmg = Math.round(bossDmg * (1.4 + 0.3 * lv));
+    if (p === 'hunter') { bossDmg *= 2 + lv; floatText(player.x, player.y - 60 * S, 'CRIT', PATRONS.hunter.color); }
+    if (p === 'siren' && G.boss) G.boss.scram = 3 + 1.5 * lv;
+    if (p === 'bulwark') player.deflect = 3.5 + 1.5 * lv;
+    if (G.boss) damageBoss(bossDmg);
   }
 
   // =========================================================
@@ -1382,7 +1458,9 @@
     return f > 0.6 ? 1 : f > 0.3 ? 2 : 3;
   }
 
-  function bossRest(b) { return [1.5, 0.7, 0.5][b.phase - 1]; }
+  function bossRest(b) {
+    return [1.5, 0.7, 0.5][b.phase - 1] * (b.scram > 0 ? 1.8 : 1);
+  }
 
   function bossChooseAction(b) {
     const pool = b.def.pools[b.phase - 1];
@@ -1736,6 +1814,12 @@
       }
     }
 
+    updateDash(dt);
+    updateDashHud();
+    if (player.deflect > 0) {
+      player.deflect -= dt;
+      deflectNear(player.x, player.y, 78 * S);
+    }
     if (settings.autoFire || input.firing) playerShoot();
 
     // Engine exhaust
@@ -1763,6 +1847,9 @@
     player.drones = [];
     player.dual = false;
     player.cool = 0;
+    player.dash = 0;
+    player.dashCool = 0;
+    player.snap = 0;
     // Only the shots that would kill you the moment you appear are swept.
     // Wiping the whole screen made dying the strongest defensive move in the
     // game; now the rest of the field is exactly as dangerous as you left it.
@@ -1775,7 +1862,7 @@
   }
 
   function hitPlayer(cause) {
-    if (!player.alive || player.invuln > 0) return;
+    if (!player.alive || player.invuln > 0 || player.dash > 0) return;
     // The recovered fighter takes the hit first: you drop back to one hull.
     if (player.dual) {
       player.dual = false;
@@ -1788,6 +1875,28 @@
       breakCombo();
       return;
     }
+    // The Hull slot answers when you are hit.
+    const hp = slotPatron('hull'), hlv = slotLevel('hull');
+    if (hp === 'bulwark' && !G.hullSaved) {
+      // A free save, once a wave: the plating takes it instead of the hull.
+      G.hullSaved = true;
+      player.invuln = 1.6;
+      deflectNear(player.x, player.y, 150 * S);
+      explode(player.x, player.y, PATRONS.bulwark.color, 18, 1.1);
+      floatText(player.x, player.y - 30 * S, 'PLATING HELD', PATRONS.bulwark.color);
+      Sound.hit(); Haptics.glanced(); breakCombo();
+      return;
+    }
+    if (hp === 'vulcan' || hp === 'tempest' || hp === 'siren') {
+      for (const e of G.enemies) {
+        if (hypot(e.x - player.x, e.y - player.y) > 230 * S) continue;
+        if (hp === 'vulcan') applyBurn(e, hlv + 1);
+        if (hp === 'siren') applyScramble(e, hlv + 1);
+        if (hp === 'tempest') { arcBolt(player.x, player.y, e.x, e.y, PATRONS.tempest.color); damageRaider(e, hlv, { noArc: true, quiet: true }); }
+      }
+    }
+    if (hp === 'hunter') player.snap = 4 + 2 * hlv;   // you come back angry
+
     player.alive = false;
     player.deadTimer = 1.6;
     // Hold a short slow-motion beat naming the culprit, so a death teaches
@@ -1857,10 +1966,55 @@
   const RARITY = {
     common: { label: 'Common', weight: 58 },
     rare:   { label: 'Rare',   weight: 30 },
+    boon:   { label: 'Boon',   weight: 46 },
     epic:   { label: 'Epic',   weight: 18 },
     pact:   { label: 'Pact',   weight: 20 }
   };
 
+  /**
+   * Boons. A patron card fits its signature to one of your verbs, and a verb
+   * holds one patron at a time — taking a new one replaces what was there.
+   * That makes a refit a composition rather than a pile of percentages.
+   */
+  const SLOTS = {
+    cannon: { name: 'Cannon', blurb: 'your main guns' },
+    wing:   { name: 'Wing',   blurb: 'your drones' },
+    bomb:   { name: 'Bomb',   blurb: 'your smart bombs' },
+    hull:   { name: 'Hull',   blurb: 'what happens when you are hit' },
+    dash:   { name: 'Roll',   blurb: 'your barrel roll' }
+  };
+
+  const BOONS = [
+    // VULCAN — burn
+    { id: 'v_cannon', patron: 'vulcan', slot: 'cannon', cap: 2, name: 'Cinder Rounds',  blurb: 'Your shots set raiders burning.' },
+    { id: 'v_dash',   patron: 'vulcan', slot: 'dash',   cap: 2, name: 'Scorch Trail',   blurb: 'Your roll lays a trail of fire.' },
+    { id: 'v_bomb',   patron: 'vulcan', slot: 'bomb',   cap: 2, name: 'Thermobaric',    blurb: 'Your bombs leave the field burning.' },
+    { id: 'v_hull',   patron: 'vulcan', slot: 'hull',   cap: 2, name: 'Cinder Core',    blurb: 'Taking a hit sets nearby raiders alight.' },
+    // TEMPEST — arc
+    { id: 't_cannon', patron: 'tempest', slot: 'cannon', cap: 2, name: 'Arc Rounds',    blurb: 'Your shots jump to a second raider.' },
+    { id: 't_dash',   patron: 'tempest', slot: 'dash',   cap: 2, name: 'Thunder Roll',  blurb: 'Your roll throws a bolt at whatever is close.' },
+    { id: 't_wing',   patron: 'tempest', slot: 'wing',   cap: 2, name: 'Storm Drones',  blurb: 'Drone fire jumps to a second raider.' },
+    { id: 't_bomb',   patron: 'tempest', slot: 'bomb',   cap: 2, name: 'Chain Charge',  blurb: 'Your bombs hit bosses far harder.' },
+    // HUNTER — crit
+    { id: 'h_cannon', patron: 'hunter', slot: 'cannon', cap: 2, name: 'Marksman Rounds', blurb: 'Your shots can land critical hits.' },
+    { id: 'h_dash',   patron: 'hunter', slot: 'dash',   cap: 2, name: 'Snap Shot',      blurb: 'Your next shots after a roll always crit.' },
+    { id: 'h_wing',   patron: 'hunter', slot: 'wing',   cap: 2, name: 'Hunting Pair',   blurb: 'Drone fire can land critical hits.' },
+    { id: 'h_hull',   patron: 'hunter', slot: 'hull',   cap: 2, name: 'Grudge',         blurb: 'You come back from a hit landing crits.' },
+    // BULWARK — deflect
+    { id: 'b_cannon', patron: 'bulwark', slot: 'cannon', cap: 2, name: 'Flak Screen',   blurb: 'Your shots knock incoming fire out of the air.' },
+    { id: 'b_dash',   patron: 'bulwark', slot: 'dash',   cap: 2, name: 'Roll Armour',   blurb: 'Your roll sweeps enemy fire away.' },
+    { id: 'b_hull',   patron: 'bulwark', slot: 'hull',   cap: 2, name: 'Ablative Plate', blurb: 'The first hit each wave costs you nothing.' },
+    { id: 'b_bomb',   patron: 'bulwark', slot: 'bomb',   cap: 2, name: 'Aegis Charge',  blurb: 'Your bombs leave a shield that eats fire.' },
+    // SIREN — scramble
+    { id: 's_cannon', patron: 'siren', slot: 'cannon', cap: 2, name: 'Jammer Rounds',   blurb: 'Hits leave raiders slow and unable to aim.' },
+    { id: 's_dash',   patron: 'siren', slot: 'dash',   cap: 2, name: 'Wake Turbulence', blurb: 'Raiders you roll past are scrambled.' },
+    { id: 's_bomb',   patron: 'siren', slot: 'bomb',   cap: 2, name: 'EMP Charge',      blurb: 'Your bombs leave a boss reeling.' },
+    { id: 's_hull',   patron: 'siren', slot: 'hull',   cap: 2, name: 'Dead Man Pulse',  blurb: 'Taking a hit scrambles everything near you.' }
+  ];
+  for (const bn of BOONS) bn.rarity = 'boon';
+
+  // The quartermaster's shelf: no patron, no slot, just the utility a run
+  // still needs. These stack the way the old refit cards did.
   const UPGRADES = [
     { id: 'spare',      name: 'Spare Ship',       cap: 3, rarity: 'common', blurb: 'One more ship in reserve, right now.' },
     { id: 'bounty',     name: 'Bounty Contract',  cap: 3, rarity: 'common', blurb: 'Kills are worth 15% more.' },
@@ -1870,6 +2024,7 @@
     { id: 'bombrack',   name: 'Bomb Rack',        cap: 2, rarity: 'rare',   blurb: 'Carry one more bomb, and take one now.' },
     { id: 'coolant',    name: 'Coolant Loop',     cap: 2, rarity: 'rare',   blurb: 'Power-ups you pick up last 50% longer.' },
     { id: 'tractor',    name: 'Tractor Rig',      cap: 1, rarity: 'rare',   blurb: 'Power-ups drift toward your ship.' },
+    { id: 'rollcage',   name: 'Roll Cage',        cap: 2, rarity: 'rare',   blurb: 'Your barrel roll comes back 25% sooner.' },
     { id: 'optics',     name: 'Targeting Optics', cap: 2, rarity: 'epic',   blurb: 'Boss core hits do +1 damage.' },
     { id: 'overdrive',  name: 'Overdrive',        cap: 2, rarity: 'epic',   blurb: 'Combo multiplier caps 2 steps higher.' },
     { id: 'escort',     name: 'Escort Contract',  cap: 1, rarity: 'epic',   blurb: 'Start every wave with wingmen.' },
@@ -1889,7 +2044,7 @@
       blurb: 'Power-up drops are doubled.', cost: 'One more raider dives at a time.' }
   ];
 
-  const CARDS = UPGRADES.concat(PACTS);
+  const CARDS = BOONS.concat(UPGRADES, PACTS);
   const cardById = (id) => CARDS.find((c) => c.id === id);
 
   const ROMAN = ['', 'I', 'II', 'III', 'IV'];
@@ -2010,6 +2165,177 @@
 
   const BOSS_HIT_ID = -1;      // stands in for the boss in a pierce hit list
 
+  // =========================================================
+  //  Patron signatures
+  //  Each patron does one visible thing. Boons decide which of
+  //  your verbs carries it, so a run is named by what is on
+  //  screen rather than by a list of percentages.
+  // =========================================================
+
+  const PATRONS = {
+    vulcan:  { name: 'VULCAN',  color: '#ff6b35', tag: 'burn',     blurb: 'sets raiders burning' },
+    tempest: { name: 'TEMPEST', color: '#4da6ff', tag: 'arc',      blurb: 'arcs to a second raider' },
+    hunter:  { name: 'HUNTER',  color: '#8dff5a', tag: 'crit',     blurb: 'lands critical hits' },
+    bulwark: { name: 'BULWARK', color: '#ffc94d', tag: 'deflect',  blurb: 'knocks incoming fire down' },
+    siren:   { name: 'SIREN',   color: '#a78bfa', tag: 'scramble', blurb: 'scrambles what it touches' }
+  };
+
+  /** Which patron, if any, is fitted to a slot. */
+  const slotPatron = (slot) => G.slots[slot] && G.slots[slot].patron;
+  const slotLevel = (slot) => (G.slots[slot] ? G.slots[slot].level : 0);
+
+  /** Sets a raider alight; damage lands once a second while it burns. */
+  function applyBurn(e, level) {
+    e.burn = Math.max(e.burn || 0, 2.5 + 1.5 * level);
+    e.burnTick = e.burnTick || 1;
+  }
+
+  /** Slows a raider and spoils its aim. */
+  function applyScramble(e, level) {
+    e.scram = Math.max(e.scram || 0, 2.2 + 1.2 * level);
+  }
+
+  /** Jumps a hit to the nearest other raider. */
+  function applyArc(from, level, skip) {
+    let best = null, bestD = 150 * S * (1 + 0.25 * level);
+    for (const e of G.enemies) {
+      if (e === skip || e.bonus) continue;
+      const d = hypot(e.x - from.x, e.y - from.y);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (!best) return;
+    arcBolt(from.x, from.y, best.x, best.y, PATRONS.tempest.color);
+    damageRaider(best, 1, { noArc: true });
+  }
+
+  /** Knocks enemy fire out of the air around a point. */
+  function deflectNear(x, y, radius) {
+    let hit = 0;
+    for (let i = G.eBullets.length - 1; i >= 0; i--) {
+      const b = G.eBullets[i];
+      if (hypot(b.x - x, b.y - y) > radius) continue;
+      G.eBullets.splice(i, 1);
+      explode(b.x, b.y, PATRONS.bulwark.color, 4, 0.5);
+      hit++;
+    }
+    if (hit) Sound.tone(880, 0.07, 'square', 0.035, 520);
+    return hit;
+  }
+
+  /** A drawn lightning arc, held briefly so the jump is readable. */
+  function arcBolt(x1, y1, x2, y2, color) {
+    G.arcs.push({ x1: x1, y1: y1, x2: x2, y2: y2, color: color, t: 0.18, max: 0.18 });
+  }
+
+  /**
+   * One way in and out for raider damage, so every patron effect, crit and
+   * kill goes through the same place.
+   */
+  function damageRaider(e, amount, opts) {
+    const o = opts || {};
+    const idx = G.enemies.indexOf(e);
+    if (idx < 0) return false;
+    let dmg = amount;
+    let crit = false;
+    if (!o.noCrit && o.critChance && Math.random() < o.critChance) {
+      crit = true;
+      dmg *= 3;
+    }
+    e.hp -= dmg;
+    e.flash = 0.09;
+    if (crit) {
+      explode(e.x, e.y, '#ffffff', 9, 0.8);
+      floatText(e.x, e.y - 12 * S, 'CRIT', PATRONS.hunter.color);
+      Sound.crit();
+    }
+    if (!o.noArc && o.arcLevel) applyArc(e, o.arcLevel, e);
+    if (o.burnLevel) applyBurn(e, o.burnLevel);
+    if (o.scramLevel) applyScramble(e, o.scramLevel);
+    if (e.hp <= 0) { killEnemy(G.enemies.indexOf(e)); return true; }
+    if (!o.quiet) { Sound.hit(); explode(e.x, e.y, e.def.color, 4, 0.5); }
+    return false;
+  }
+
+  /** Burn ticks and scramble timers, run once a frame for every raider. */
+  function updateStatuses(dt) {
+    if (G.boss && G.boss.scram > 0) G.boss.scram -= dt;
+    for (let i = G.enemies.length - 1; i >= 0; i--) {
+      const e = G.enemies[i];
+      if (e.scram > 0) e.scram -= dt;
+      if (!(e.burn > 0)) continue;
+      e.burn -= dt;
+      e.burnTick -= dt;
+      if (e.burnTick <= 0) {
+        e.burnTick = 1;
+        G.parts.push({ x: e.x + rand(-6, 6) * S, y: e.y, vx: rand(-10, 10) * S, vy: rand(-40, -10) * S,
+                       life: 0.35, max: 0.35, size: rand(1.6, 3) * S, color: PATRONS.vulcan.color });
+        if (damageRaider(e, 1, { quiet: true, noArc: true })) continue;
+      }
+    }
+    for (let i = G.arcs.length - 1; i >= 0; i--) {
+      G.arcs[i].t -= dt;
+      if (G.arcs[i].t <= 0) G.arcs.splice(i, 1);
+    }
+  }
+
+  /** Fired the instant a roll begins — the Dash slot's payload. */
+  function onDashStart() {
+    const p = slotPatron('dash'), lv = slotLevel('dash');
+    if (p === 'bulwark') deflectNear(player.x, player.y, 110 * S);
+    if (p === 'hunter') player.snap = 3;                 // next shots are guaranteed crits
+    if (p === 'tempest') {
+      for (const e of G.enemies) {
+        if (hypot(e.x - player.x, e.y - player.y) < 190 * S * (1 + 0.2 * lv)) {
+          arcBolt(player.x, player.y, e.x, e.y, PATRONS.tempest.color);
+          damageRaider(e, lv, { noArc: true, quiet: true });
+          break;
+        }
+      }
+    }
+  }
+
+  /** Runs every frame of the roll — trails and wake effects live here. */
+  function onDashTick(dt) {
+    const p = slotPatron('dash'), lv = slotLevel('dash');
+    if (p === 'vulcan') {
+      G.fires.push({ x: player.x, y: player.y, r: 26 * S, t: 1.4 + 0.6 * lv, max: 2, lv: lv });
+    }
+    if (p === 'siren') {
+      for (const e of G.enemies) {
+        if (hypot(e.x - player.x, e.y - player.y) < 70 * S) applyScramble(e, lv);
+      }
+    }
+    if (p === 'bulwark') deflectNear(player.x, player.y, 70 * S);
+  }
+
+  /** Lingering fire left by a Vulcan roll. */
+  function updateFires(dt) {
+    for (let i = G.fires.length - 1; i >= 0; i--) {
+      const f = G.fires[i];
+      f.t -= dt;
+      if (f.t <= 0) { G.fires.splice(i, 1); continue; }
+      for (const e of G.enemies) {
+        if (hypot(e.x - f.x, e.y - f.y) < f.r + e.def.r * S) applyBurn(e, f.lv);
+      }
+    }
+  }
+
+  /**
+   * What a shot carries into a raider. Cannon shots take the Cannon slot's
+   * patron; drone fire takes the Wing slot's.
+   */
+  function cannonPayload(fromWing) {
+    const slot = fromWing ? 'wing' : 'cannon';
+    const p = slotPatron(slot), lv = slotLevel(slot);
+    const o = {};
+    if (p === 'vulcan') o.burnLevel = lv;
+    if (p === 'tempest') o.arcLevel = lv;
+    if (p === 'siren') o.scramLevel = lv;
+    if (p === 'hunter') o.critChance = 0.12 + 0.10 * lv;
+    if (player.snap > 0 && !fromWing) { o.critChance = 1; player.snap--; }
+    return o;
+  }
+
   function collisions() {
     // Player shots
     for (let i = G.pBullets.length - 1; i >= 0; i--) {
@@ -2025,10 +2351,7 @@
         } else {
           spent = true;
         }
-        e.hp--;
-        e.flash = 0.09;
-        if (e.hp <= 0) killEnemy(j);
-        else { Sound.hit(); explode(b.x, b.y, e.def.color, 4, 0.5); }
+        damageRaider(e, 1, cannonPayload(b.wing));
         if (spent) break;
       }
 
@@ -2153,8 +2476,11 @@
 
   function startWave() {
     const def = waveDef();
-    G.mod = rollModifier(def);
+    G.mod = (G.pending && G.pending.kind === 'trial' && !def.boss)
+      ? pick(MODIFIERS)              // contested space is always contested
+      : rollModifier(def);
     G.waveTime = 0;
+    G.hullSaved = false;      // Bulwark plating rearms each wave
     hideHeat();
     G.bossDefeated = false;
     G.bossWreck = null;
@@ -2163,6 +2489,8 @@
     G.eBullets.length = 0;
     G.pBullets.length = 0;
     G.powerups.length = 0;
+    G.arcs.length = 0;
+    G.fires.length = 0;
     G.boss = null;
     el('bossBarWrap').classList.add('hidden');
     el('hudWave').textContent = G.wave;
@@ -2228,10 +2556,33 @@
   }
 
   /** Weighted draw of n distinct cards from whatever is not yet capped. */
-  function drawOffer(n, noPacts) {
-    const eligible = CARDS.filter((c) => upLevel(c.id) < c.cap &&
-                                         !(noPacts && c.rarity === 'pact') &&
-                                         !(c.id === 'spare' && livesFull()));
+  /**
+   * A boon is locked out while a *different* patron's card of the same level
+   * already holds that slot at level 2 — otherwise a late draw could undo a
+   * finished build by accident. Levelling your own is always allowed.
+   */
+  function patronLocked(c) {
+    const held = G.slots[c.slot];
+    return !!held && held.patron !== c.patron && held.level >= 2;
+  }
+
+  /** What taking this boon would displace, for the card to say out loud. */
+  function displacedBy(c) {
+    const held = G.slots[c.slot];
+    if (!c.patron || !held || held.patron === c.patron) return null;
+    return PATRONS[held.patron].name;
+  }
+
+  function drawOffer(n, noPacts, patron) {
+    let eligible = CARDS.filter((c) => upLevel(c.id) < c.cap &&
+                                       !(noPacts && c.rarity === 'pact') &&
+                                       !(c.id === 'spare' && livesFull()) &&
+                                       !(c.patron && patronLocked(c)));
+    // A patron contact offers only that patron's boons — the door said so.
+    if (patron) {
+      const own = eligible.filter((c) => c.patron === patron);
+      if (own.length) eligible = own;
+    }
     const taken = [];
     // Outside the opening loadout, a full table always seats one pact: there
     // should always be a tempting bad idea in front of you. A table already
@@ -2271,11 +2622,18 @@
       const tier = c.cap > 1 ? '<span class="up-tier">' + ROMAN[lvl + 1] + '</span>' : '';
       const owned = lvl > 0 ? '<span class="up-owned">have ' + ROMAN[lvl] + '</span>' : '';
       const cost = c.cost ? '<span class="up-cost">' + c.cost + '</span>' : '';
-      return '<button class="up-card up-' + c.rarity + '" data-i="' + i + '">' +
-             '<span class="up-key">' + (i + 1) + '</span>' +
-             '<span class="up-rarity">' + RARITY[c.rarity].label + '</span>' +
-             '<span class="up-name">' + c.name + tier + '</span>' +
-             '<span class="up-blurb">' + c.blurb + '</span>' + cost + owned +
+      const pat = c.patron ? PATRONS[c.patron] : null;
+      const head = pat
+        ? '<span class="up-rarity" style="color:' + pat.color + '">' + pat.name +
+          ' &middot; ' + SLOTS[c.slot].name + '</span>'
+        : '<span class="up-rarity">' + RARITY[c.rarity].label + '</span>';
+      const swap = displacedBy(c)
+        ? '<span class="up-swap">replaces ' + displacedBy(c) + ' on ' + SLOTS[c.slot].name + '</span>' : '';
+      const style = pat ? ' style="border-color:' + pat.color + '88;background:' + pat.color + '14"' : '';
+      return '<button class="up-card up-' + c.rarity + '" data-i="' + i + '"' + style + '>' +
+             '<span class="up-key">' + (i + 1) + '</span>' + head +
+             '<span class="up-name"' + (pat ? ' style="color:' + pat.color + '"' : '') + '>' + c.name + tier + '</span>' +
+             '<span class="up-blurb">' + c.blurb + '</span>' + cost + swap + owned +
              '</button>';
     }).join('');
 
@@ -2294,11 +2652,12 @@
     G.refitTitle = o.title || 'Refit';
     G.refitSub = o.sub || 'Picks last the rest of the run.';
     G.noPacts = !!o.noPacts;
+    G.offerPatron = o.patron || null;
     // A run that just lost its last ship goes to the game-over screen instead.
     if (!player.alive && G.lives <= 0) { G.refitNext(); return; }
     G.picks = picks;
     // Ships lost with no reroll left cost cards off the table.
-    G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts);
+    G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts, G.offerPatron);
     if (!G.offer.length) { G.refitNext(); return; }
 
     renderOffer();
@@ -2311,7 +2670,7 @@
   function rerollOffer() {
     if (G.state !== 'upgrade' || G.rerolls <= 0) return;
     G.rerolls--;
-    G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts);
+    G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts, G.offerPatron);
     Sound.powerup();
     renderOffer();
   }
@@ -2321,6 +2680,21 @@
     const c = G.offer[index];
     G.upgrades[c.id] = upLevel(c.id) + 1;
     G.taken.push(c.id);
+
+    // Boons are fitted, not accumulated: the slot holds one patron.
+    if (c.patron) {
+      const held = G.slots[c.slot];
+      if (held && held.patron !== c.patron) {
+        // Its cards go back in the pool at level zero so the swap is clean.
+        for (const b of BOONS) {
+          if (b.slot === c.slot && b.patron === held.patron) delete G.upgrades[b.id];
+        }
+        floatText(player.x, player.y - 46 * S,
+                  PATRONS[held.patron].name + ' REPLACED', PATRONS[held.patron].color);
+      }
+      G.slots[c.slot] = { patron: c.patron, level: upLevel(c.id), card: c.id };
+      refreshSlotHud();
+    }
 
     // Cards that pay out, or charge, the moment they are taken.
     if (c.id === 'spare' && !grantLife(1)) addScore(2000);
@@ -2334,7 +2708,7 @@
     Sound.levelUp();
 
     if (G.picks > 0) {
-      G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts);
+      G.offer = drawOffer(Math.max(2, 3 - G.thinDraw), G.noPacts, G.offerPatron);
       if (G.offer.length) { renderOffer(); return; }
     }
     G.offer = null;
@@ -2465,6 +2839,21 @@
   function drawPlayer() {
     ctx.save();
     ctx.translate(player.x, player.y);
+    if (player.deflect > 0) {
+      ctx.globalCompositeOperation = 'lighter';
+      const a = 0.28 + 0.14 * Math.sin(G.time * 9);
+      const bg = ctx.createRadialGradient(0, 0, 14 * S, 0, 0, 30 * S);
+      bg.addColorStop(0, 'rgba(255,201,77,0)');
+      bg.addColorStop(0.8, 'rgba(255,201,77,' + a + ')');
+      bg.addColorStop(1, 'rgba(255,230,150,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(0, 0, 30 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (player.dash > 0) {
+      // A barrel roll, sold by squashing the hull as it turns through.
+      ctx.scale(Math.max(0.18, Math.abs(Math.cos(player.dashSpin))), 1);
+    }
     const blink = player.invuln > 0 && Math.floor(G.time * 16) % 2 === 0;
 
     if (!blink) {
@@ -2784,9 +3173,30 @@
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    if (e.scram > 0) {
+      // Scrambled: a stuttering violet ring, and the hull drifts off-axis.
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(167,139,250,' + (0.35 + 0.25 * Math.sin(G.time * 18)) + ')';
+      ctx.lineWidth = 1.6 * S;
+      ctx.beginPath();
+      ctx.arc(0, 0, (e.def.r + 5) * S, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.rotate(Math.sin(G.time * 9 + e.id) * 0.18);
+    }
     ctx.rotate(e.angle);
     const sp = raiderSprite(e);
     Sprites.blit(ctx, sp);
+    if (e.burn > 0) {
+      ctx.globalCompositeOperation = 'lighter';
+      const a = 0.3 + 0.2 * Math.sin(G.time * 20 + e.id);
+      const bg = ctx.createRadialGradient(0, 0, 0, 0, 0, (e.def.r + 7) * S);
+      bg.addColorStop(0, 'rgba(255,180,90,' + a + ')');
+      bg.addColorStop(1, 'rgba(255,90,40,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(0, 0, (e.def.r + 7) * S, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
     if (e.flash > 0) {
       // Re-blitting additively flares the whole hull without flattening it.
       ctx.globalCompositeOperation = 'lighter';
@@ -3250,6 +3660,48 @@
     }
   }
 
+  /** Tempest jumps: a jagged bolt between two points, held for a few frames. */
+  function drawArcs() {
+    if (!G.arcs.length) return;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const a of G.arcs) {
+      const k = clamp(a.t / a.max, 0, 1);
+      ctx.strokeStyle = a.color;
+      ctx.globalAlpha = k;
+      ctx.lineWidth = 2.4 * S * k;
+      ctx.beginPath();
+      ctx.moveTo(a.x1, a.y1);
+      const steps = 5;
+      for (let i = 1; i < steps; i++) {
+        const t = i / steps;
+        const nx = a.x1 + (a.x2 - a.x1) * t + rand(-9, 9) * S;
+        const ny = a.y1 + (a.y2 - a.y1) * t + rand(-9, 9) * S;
+        ctx.lineTo(nx, ny);
+      }
+      ctx.lineTo(a.x2, a.y2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /** Vulcan ground fire, painted under everything that flies. */
+  function drawFires() {
+    if (!G.fires.length) return;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const f of G.fires) {
+      const k = clamp(f.t / f.max, 0, 1);
+      const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r);
+      const a = (0.18 + 0.10 * Math.sin(G.time * 11 + f.x)) * k;
+      g.addColorStop(0, 'rgba(255,190,110,' + a + ')');
+      g.addColorStop(0.6, 'rgba(255,107,53,' + (a * 0.6) + ')');
+      g.addColorStop(1, 'rgba(255,60,20,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   function drawParticles() {
     ctx.globalCompositeOperation = 'lighter';
     for (const p of G.parts) {
@@ -3354,6 +3806,7 @@
       ctx.translate(rand(-1, 1) * G.shake * 0.5 * S, rand(-1, 1) * G.shake * 0.5 * S);
     }
     drawStars();
+    drawFires();
     drawPowerups();
     for (const e of G.enemies) drawEnemy(e);
     if (G.boss) drawBoss(G.boss);
@@ -3363,6 +3816,7 @@
       drawPlayer();
     }
     drawBullets();
+    drawArcs();
     drawParticles();
     drawTexts();
     ctx.restore();
@@ -3423,7 +3877,7 @@
     updateEffects(gdt);
 
     if (G.state === 'menu' || G.state === 'over' || G.state === 'paused' ||
-        G.state === 'upgrade') return;
+        G.state === 'upgrade' || G.state === 'sector') return;
 
     if (G.comboTimer > 0) {
       G.comboTimer -= gdt;
@@ -3450,11 +3904,12 @@
         const next = G.afterClear;
         G.afterClear = null;
         if (next) next();
-        // The refit is the boss reward; ordinary waves roll straight on, and
-        // the wave before each boss hands off to a challenging stage.
-        else if (waveDef().boss) offerUpgrade(2 + perkLevel('contract'), advanceWave);
-        else if (isBonusWave(G.wave)) startBonus();
-        else advanceWave();
+        // A boss still pays its own refit. Otherwise: collect what the sector
+        // you chose owed you, then choose the next door.
+        else if (waveDef().boss) {
+          offerUpgrade(2 + perkLevel('contract'), () => offerSector(advanceWave));
+        } else if (isBonusWave(G.wave)) startBonus();
+        else paySector(() => offerSector(advanceWave));
       }
       return;
     }
@@ -3475,6 +3930,8 @@
     updateHeatHud();
     updateSpawnQueue(edt);
     updateEnemies(edt);
+    updateStatuses(edt);
+    updateFires(edt);
     updateBoss(edt);
     collisions();
     refreshChip();
@@ -3505,7 +3962,7 @@
   // 15. Screens and run control
   // =========================================================
 
-  const SCREENS = ['menu', 'howto', 'paused', 'gameover', 'upgrade', 'hangar'];
+  const SCREENS = ['menu', 'howto', 'paused', 'gameover', 'upgrade', 'sector', 'hangar'];
 
   function showScreen(id) {
     for (const s of SCREENS) el(s).classList.toggle('active', s === id);
@@ -3529,6 +3986,11 @@
     G.thinDraw = 0;
     G.waveTime = 0;
     G.mod = null;
+    G.slots = {};
+    G.pending = null;
+    G.doors = null;
+    G.arcs.length = 0;
+    G.fires.length = 0;
     G.lives = Math.max(1, Math.min(LIFE_CAP, 3 + perkLevel('reserve') - threatShips()));
     G.rerolls = 1 + perkLevel('dice');
     G.taken = [];
@@ -3560,6 +4022,10 @@
     player.bombs = perkLevel('munitions');
     player.dual = false;
     player.cool = 0;
+    player.dash = 0;
+    player.dashCool = 0;
+    player.dashSpin = 0;
+    player.snap = 0;
     // Weapons Cache launches you already armed; Contingency holds one
     // replacement hull in reserve for the first ship you lose.
     if (perkLevel('cache')) setWeapon(pick(['twin', 'spread', 'pierce']), 20);
@@ -3579,6 +4045,8 @@
     updateLives();
     refreshChip();
     updateComboHud();
+    slotKey = null;
+    refreshSlotHud();
     el('hud').classList.remove('hidden');
     showScreen(null);
     // Every run opens with a loadout pick, so the build layer is visible
@@ -3591,16 +4059,152 @@
   }
 
   /** Renders the run's cards as chips into `target`; hides it when empty. */
+  /**
+   * The run's build: the fitted loadout first, verb by verb, then whatever
+   * utility is stacked on top.
+   */
   function renderBuild(target) {
-    if (!G.taken || !G.taken.length) { target.classList.add('hidden'); return; }
+    const fitted = Object.keys(SLOTS)
+      .filter((k) => G.slots[k])
+      .map((k) => {
+        const sl = G.slots[k], pat = PATRONS[sl.patron];
+        return '<span class="build-chip build-boon" style="border-color:' + pat.color +
+               ';color:' + pat.color + '">' + SLOTS[k].name + ': ' + pat.name +
+               (sl.level > 1 ? ' ' + ROMAN[sl.level] : '') + '</span>';
+      });
     const counts = {};
-    for (const id of G.taken) counts[id] = (counts[id] || 0) + 1;
-    target.innerHTML = Object.keys(counts).map((id) => {
+    for (const id of G.taken) {
+      const c = cardById(id);
+      if (!c || c.patron) continue;         // boons are shown by slot above
+      counts[id] = (counts[id] || 0) + 1;
+    }
+    const rest = Object.keys(counts).map((id) => {
       const c = cardById(id);
       return '<span class="build-chip build-' + c.rarity + '">' + c.name +
              (counts[id] > 1 ? ' ' + ROMAN[counts[id]] : '') + '</span>';
-    }).join('');
+    });
+    if (!fitted.length && !rest.length) { target.classList.add('hidden'); return; }
+    target.innerHTML = fitted.concat(rest).join('');
     target.classList.remove('hidden');
+  }
+
+  /** A compact row of fitted patrons, always visible in the HUD. */
+  let slotKey = null;
+  function refreshSlotHud() {
+    const wrap = el('hudSlots');
+    const keys = Object.keys(SLOTS).filter((k) => G.slots[k]);
+    const key = keys.map((k) => k + G.slots[k].patron + G.slots[k].level).join(',');
+    if (key === slotKey) return;
+    slotKey = key;
+    wrap.innerHTML = keys.map((k) => {
+      const sl = G.slots[k], pat = PATRONS[sl.patron];
+      return '<span class="slot-pip" style="color:' + pat.color + ';border-color:' + pat.color + '">' +
+             SLOTS[k].name.charAt(0) + (sl.level > 1 ? '<b>' + ROMAN[sl.level] + '</b>' : '') + '</span>';
+    }).join('');
+    wrap.classList.toggle('hidden', !keys.length);
+  }
+
+  // =========================================================
+  //  Sector doors
+  //  You pick the next sector knowing what it pays, so the route
+  //  through a run is chosen rather than handed to you.
+  // =========================================================
+
+  const SECTORS = [
+    { kind: 'boon',  weight: 40, label: 'Patron Contact', icon: '\u25c8',
+      note: (d) => PATRONS[d.patron].name + ' will offer a boon' },
+    { kind: 'hull',  weight: 16, label: 'Repair Dock',    icon: '\u2726', note: () => 'One ship back in reserve' },
+    { kind: 'arms',  weight: 16, label: 'Munitions Depot', icon: '\u25c9', note: () => 'Two smart bombs' },
+    { kind: 'cache', weight: 12, label: 'Salvage Cache',  icon: '\u25c6', note: () => 'A refit reroll and a score bounty' },
+    { kind: 'trial', weight: 16, label: 'Contested Space', icon: '\u2739',
+      note: () => 'Fought under a condition \u2014 pays two boons' }
+  ];
+
+  /** Draws the doors for the next wave: distinct kinds, patron picked per door. */
+  function rollSectors(n) {
+    const out = [];
+    const pool = SECTORS.slice();
+    while (out.length < n && pool.length) {
+      let total = 0;
+      for (const d of pool) total += d.weight;
+      let roll = Math.random() * total;
+      let chosen = pool[0];
+      for (const d of pool) { roll -= d.weight; if (roll <= 0) { chosen = d; break; } }
+      pool.splice(pool.indexOf(chosen), 1);
+      const door = { kind: chosen.kind, label: chosen.label, icon: chosen.icon, def: chosen };
+      if (chosen.kind === 'boon' || chosen.kind === 'trial') {
+        door.patron = pick(Object.keys(PATRONS));
+      }
+      out.push(door);
+    }
+    return out;
+  }
+
+  function offerSector(then) {
+    if (!player.alive && G.lives <= 0) { then(); return; }
+    G.sectorNext = then;
+    G.doors = rollSectors(3);
+    renderSectors();
+    hideAnnounce();
+    G.state = 'sector';
+    showScreen('sector');
+  }
+
+  function renderSectors() {
+    el('sectorCards').innerHTML = G.doors.map((d, i) => {
+      const pat = d.patron ? PATRONS[d.patron] : null;
+      const tint = pat ? pat.color : '#8fa3c4';
+      return '<button class="door" data-i="' + i + '" style="border-color:' + tint + '88">' +
+             '<span class="door-key">' + (i + 1) + '</span>' +
+             '<span class="door-icon" style="color:' + tint + '">' + d.icon + '</span>' +
+             '<span class="door-label">' + d.label + '</span>' +
+             '<span class="door-note" style="color:' + tint + '">' + d.def.note(d) + '</span>' +
+             '</button>';
+    }).join('');
+    for (const btn of el('sectorCards').querySelectorAll('.door')) {
+      btn.addEventListener('click', () => takeSector(Number(btn.dataset.i)));
+    }
+  }
+
+  function takeSector(index) {
+    if (G.state !== 'sector' || !G.doors || !G.doors[index]) return;
+    G.pending = G.doors[index];
+    G.doors = null;
+    Sound.levelUp();
+    showScreen(null);
+    const then = G.sectorNext;
+    G.sectorNext = null;
+    then();
+  }
+
+  /** Pays out the sector you chose, once its wave is behind you. */
+  function paySector(then) {
+    const d = G.pending;
+    G.pending = null;
+    if (!d) { then(); return; }
+    if (d.kind === 'hull') {
+      if (!grantLife(1)) addScore(2000);
+      floatText(player.x, player.y - 34 * S, 'HULL RESTORED', '#5cd6ff');
+      Sound.powerup(); then(); return;
+    }
+    if (d.kind === 'arms') {
+      player.bombs = Math.min(bombCap(), player.bombs + 2);
+      updateBombs();
+      floatText(player.x, player.y - 34 * S, 'MUNITIONS', '#ff5a2b');
+      Sound.powerup(); then(); return;
+    }
+    if (d.kind === 'cache') {
+      G.rerolls++;
+      addScore(1200 * G.wave);
+      floatText(player.x, player.y - 34 * S, 'SALVAGE CACHE', '#ffd166');
+      Sound.powerup(); then(); return;
+    }
+    // Both remaining kinds pay in boons, drawn from the door's patron.
+    offerUpgrade(d.kind === 'trial' ? 2 : 1, then, {
+      title: PATRONS[d.patron].name,
+      sub: 'This patron ' + PATRONS[d.patron].blurb + '. Fit it to a verb.',
+      patron: d.patron
+    });
   }
 
   function pauseGame() {
@@ -3625,6 +4229,8 @@
 
   function quitToMenu() {
     G.state = 'menu';
+    G.doors = null;
+    G.pending = null;
     hideHeat();
     G.offer = null;
     G.boss = null;

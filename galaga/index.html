@@ -44,6 +44,7 @@
     </div>
     <div class="hud-row second">
       <div id="hudLives" class="lives"></div>
+      <div id="hudSlots" class="slots hidden"></div>
       <div id="hudPowerup" class="powerup-chip hidden"></div>
       <button id="pauseBtn" class="icon-btn" aria-label="Pause">❚❚</button>
     </div>
@@ -52,6 +53,12 @@
       <div class="boss-bar"><div id="bossBarFill" class="boss-bar-fill"></div></div>
     </div>
   </div>
+
+  <!-- Barrel roll: a short burst that cannot be shot down -->
+  <button id="dashBtn" class="dash-btn hidden" aria-label="Barrel roll">
+    <span class="dash-ring"></span>
+    <span class="dash-glyph">&#8634;</span>
+  </button>
 
   <!-- Smart bombs are held, not spent on pickup: tap to detonate -->
   <button id="bombBtn" class="bomb-btn hidden" aria-label="Detonate smart bomb">
@@ -102,6 +109,9 @@
       <ul class="how-list">
         <li><b>Move</b> — drag anywhere on the screen. Your ship follows your thumb, so you can keep it out from under your finger.</li>
         <li><b>Shoot</b> — auto-fire is on by default. Turn it off to tap-to-fire, or use <b>Space</b> and arrow keys on a desktop.</li>
+        <li><b>Barrel roll</b> — tap the pad bottom-right (or <b>Shift</b>/<b>C</b>). You cannot be shot down mid-roll. It is your only defence, and the best place to put a patron's boon.</li>
+        <li><b>Patrons</b> — five of them, each doing one visible thing: <b>Vulcan</b> burns, <b>Tempest</b> arcs to a second raider, <b>Hunter</b> crits, <b>Bulwark</b> knocks fire out of the air, <b>Siren</b> scrambles. A boon fits a patron to one of your verbs — Cannon, Wing, Bomb, Hull or Roll — and each verb holds one patron at a time, so taking a new boon replaces what was there.</li>
+        <li><b>Sectors</b> — after each wave you choose where to go next, and the reward is shown before you commit: a named patron's boon, a repair, munitions, a salvage cache, or contested space that is harder but pays double.</li>
         <li><b>Formations</b> — clear every raider in the wave to advance. Diving enemies are worth double.</li>
         <li><b>Ships</b> — you start with three in reserve and can never hold more than five. At five, extra lives stop dropping and pay points instead.</li>
         <li><b>Losses carry</b> — dying sweeps only the shots right on top of you, not the whole screen, and each ship lost costs a reroll, then a card off your next refit table. You get one emergency hull a run, and only if a boss would otherwise be met on your last ship.</li>
@@ -167,6 +177,15 @@
       <p class="muted upgrade-sub"><span id="upgradeSub">Picks last the rest of the run.</span> <span id="upgradePicks" class="picks-left">Pick one</span></p>
       <div id="upgradeCards" class="up-cards"></div>
       <button id="rerollBtn" class="reroll-btn">Reroll (1)</button>
+    </div>
+  </section>
+
+  <!-- ========================= SECTOR PICK ======================= -->
+  <section id="sector" class="screen">
+    <div class="panel upgrade-panel">
+      <h2>Choose your approach</h2>
+      <p class="muted upgrade-sub">Each sector pays differently. Pick the one your run needs.</p>
+      <div id="sectorCards" class="doors"></div>
     </div>
   </section>
 
