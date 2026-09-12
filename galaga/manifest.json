@@ -1,0 +1,14 @@
+{
+  "name": "Galaxy Raider",
+  "short_name": "Galaxy Raider",
+  "description": "A Galaga-style arcade shooter with 12 waves and three bosses.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#05060f",
+  "theme_color": "#05060f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

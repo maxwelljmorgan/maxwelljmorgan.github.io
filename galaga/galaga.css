@@ -1,0 +1,740 @@
+/* ==========================================================
+   Galaxy Raider — mobile-first arcade shooter
+   ========================================================== */
+
+:root {
+  --bg: #030814;
+  --ink: #eaf1fb;
+  --muted: #8496b5;
+  --accent: #4da6ff;        /* Arwing wing blue */
+  --accent-2: #ff6b35;      /* hull stripe orange */
+  --laser: #8dff5a;         /* laser green */
+  --gold: #ffc94d;
+  --panel: rgba(9, 18, 38, 0.93);
+  --line: rgba(96, 148, 224, 0.32);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Avenir Next", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  margin: 0 auto;
+  max-width: 620px;
+  overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 0%, #0d2149 0%, #051027 55%, #010509 100%);
+}
+
+#game { display: block; width: 100%; height: 100%; touch-action: none; }
+
+.hidden { display: none !important; }
+
+/* ---------------------------- HUD ---------------------------- */
+#hud {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.hud-row { display: flex; align-items: flex-start; justify-content: space-between; }
+.hud-row.second { margin-top: 6px; align-items: center; }
+
+.hud-block { display: flex; flex-direction: column; line-height: 1.05; min-width: 72px; }
+.hud-block.center { align-items: center; }
+.hud-block.right { align-items: flex-end; }
+
+.hud-label {
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hud-value {
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(77, 166, 255, .55);
+}
+
+/* Combo: the multiplier plus a bar that drains as the chain window closes. */
+.combo { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+.combo-mult {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--laser);
+  text-shadow: 0 0 10px rgba(141, 255, 90, .55);
+  font-variant-numeric: tabular-nums;
+  animation: pop .28s ease-out;
+}
+.combo-bar {
+  width: 46px;
+  height: 3px;
+  border-radius: 99px;
+  background: rgba(141, 255, 90, .18);
+  overflow: hidden;
+}
+.combo-fill {
+  height: 100%;
+  background: var(--laser);
+  box-shadow: 0 0 8px rgba(141, 255, 90, .8);
+}
+
+/* Held smart bombs, reachable with the off thumb. */
+.bomb-btn {
+  position: absolute;
+  left: calc(14px + env(safe-area-inset-left));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 6;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 90, 43, .75);
+  background: rgba(10, 16, 32, .62);
+  color: #ff5a2b;
+  /* Inert to pointers: the canvas hit-tests this rect so a drag starting
+     here still flies the ship, and only a real tap spends a bomb. */
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bomb-ring {
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 90, 43, .55);
+  box-shadow: 0 0 14px rgba(255, 90, 43, .5), 0 0 14px rgba(255, 90, 43, .35) inset;
+  animation: pulse 1.4s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bomb-ring { animation: none; }
+}
+.bomb-count {
+  position: relative;
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffe0d2;
+}
+
+/* Heat: the wave-timer pressure gauge, only visible once it bites. */
+.heat { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 3px; }
+.heat-label {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .2em;
+  color: #ff8548;
+  text-shadow: 0 0 8px rgba(255, 107, 53, .7);
+}
+.heat-bar { width: 46px; height: 3px; border-radius: 99px; background: rgba(255, 107, 53, .18); overflow: hidden; }
+.heat-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffc94d, #ff3b1f); box-shadow: 0 0 8px rgba(255, 107, 53, .8); }
+.heat.full .heat-label { animation: pulse .6s ease-in-out infinite alternate; }
+
+/* Threat level picker on the menu. */
+.threat {
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 107, 53, .42);
+  background: rgba(255, 107, 53, .08);
+}
+.threat-label { display: block; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.threat-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 5px 0 4px; }
+.threat-name { font-size: 16px; font-weight: 800; letter-spacing: .06em; color: var(--accent-2); }
+.threat-step {
+  width: 30px; height: 30px;
+  flex: none;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 107, 53, .5);
+  background: transparent;
+  color: var(--accent-2);
+  font: 700 17px/1 inherit;
+  cursor: pointer;
+}
+.threat-step:disabled { opacity: .3; cursor: default; }
+.threat-blurb { display: block; font-size: 11.5px; line-height: 1.45; color: #cddaf0; }
+
+/* Barrel roll pad, mirroring the bomb button on the other thumb. */
+.dash-btn {
+  position: absolute;
+  right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 6;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid rgba(124, 200, 255, .75);
+  background: rgba(10, 16, 32, .62);
+  color: #7cc8ff;
+  /* Inert to pointers, like the bomb pad: the canvas hit-tests this rect so a
+     drag starting here still flies the ship, and only a tap rolls. */
+  pointer-events: none;
+}
+.dash-ring {
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  border: 2px solid rgba(124, 200, 255, .55);
+  box-shadow: 0 0 14px rgba(124, 200, 255, .5), 0 0 14px rgba(124, 200, 255, .3) inset;
+}
+.dash-glyph { position: relative; font-size: 25px; line-height: 1; color: #cfe8ff; }
+.dash-btn.cooling { opacity: .38; }
+.dash-btn.cooling .dash-ring { box-shadow: none; }
+
+.lives { display: flex; gap: 5px; align-items: center; height: 18px; }
+
+/* Fitted patrons, one pip per verb. */
+.slots { display: flex; gap: 4px; align-items: center; margin-left: 8px; }
+.slot-pip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  background: rgba(6, 10, 26, .72);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+.slot-pip b { font-size: 8px; font-weight: 700; opacity: .85; }
+
+/* Boon cards carry their patron's colour, set inline on the element. */
+.up-boon .up-rarity { font-weight: 800; }
+.up-swap {
+  font-size: 10.5px;
+  letter-spacing: .04em;
+  color: #ffb59a;
+}
+.build-boon { font-weight: 700; }
+.life-icon { width: 15px; height: 15px; opacity: .95; }
+
+/* Active power-ups: one small badge each, glyph then seconds remaining. */
+.powerup-chip {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-left: auto;
+  margin-right: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+.powerup-chip .pw {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  flex: none;
+  padding: 3px 6px;
+  border-radius: 7px;
+  border: 1px solid currentColor;
+  background: rgba(6, 10, 26, .72);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.powerup-chip .pw b { font-size: 11px; font-weight: 800; }
+
+.icon-btn {
+  pointer-events: auto;
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(10, 14, 34, .7);
+  color: var(--ink);
+  font-size: 13px;
+  letter-spacing: 1px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  margin-left: auto;
+}
+.icon-btn:active { transform: scale(.94); }
+
+/* ------------------------- Boss health ------------------------ */
+.boss-bar-wrap { margin-top: 10px; }
+.boss-name {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin-bottom: 4px;
+  text-align: center;
+  text-shadow: 0 0 10px rgba(255, 107, 53, .65);
+}
+.boss-bar {
+  height: 8px;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 107, 53, .55);
+  background: rgba(255, 107, 53, .12);
+  overflow: hidden;
+}
+.boss-bar-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #ffc94d, #ff3b1f);
+  box-shadow: 0 0 12px rgba(255, 107, 53, .8);
+  transition: width .18s ease-out;
+}
+
+/* ------------------------ Announcements ----------------------- */
+.announce {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+  z-index: 6;
+}
+.announce-main {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .5), 0 0 14px rgba(77, 166, 255, .6);
+  animation: pop .5s ease-out;
+}
+.announce-sub {
+  margin-top: 8px;
+  font-size: 13px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.announce.danger .announce-main {
+  color: #ff8548;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .5), 0 0 16px rgba(255, 107, 53, .75);
+  animation: pulse .55s ease-in-out infinite alternate;
+}
+
+@keyframes pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes pulse { from { transform: scale(.96); } to { transform: scale(1.06); } }
+
+/* --------------------------- Screens -------------------------- */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  place-content: center;
+  padding: calc(18px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
+  background: rgba(4, 6, 16, .82);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  z-index: 10;
+}
+.screen.active { display: grid; }
+
+.panel {
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+  text-align: center;
+}
+.panel.scroll { max-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; text-align: left; }
+
+.logo {
+  margin: 0 0 4px;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 0 24px rgba(77, 166, 255, .55);
+}
+.logo span { display: block; color: var(--accent-2); text-shadow: 0 0 24px rgba(255, 107, 53, .55); }
+
+.tagline { margin: 10px 0 22px; color: var(--muted); font-size: 13px; letter-spacing: .05em; }
+
+h2 { margin: 0 0 18px; font-size: 22px; letter-spacing: .08em; }
+
+.big-btn {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 15px 18px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: #04121b;
+  background: linear-gradient(90deg, #4da6ff, #7fc8ff);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+}
+.big-btn:active { transform: scale(.98); }
+.big-btn.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.menu-stats {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0 12px;
+}
+.menu-stats > div {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.menu-stats .k { font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.menu-stats .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.toggles { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 2px; }
+.toggles .toggle { flex: 1 1 30%; }
+.toggle {
+  flex: 1;
+  padding: 10px 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: .06em;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--muted);
+  cursor: pointer;
+}
+.toggle[data-on="true"] { color: var(--accent); border-color: rgba(77, 166, 255, .55); background: rgba(77, 166, 255, .12); }
+.toggle:disabled { opacity: .4; cursor: default; }
+
+/* --------------------- Between-wave refit --------------------- */
+.upgrade-panel { max-width: 420px; }
+.upgrade-sub { margin: -8px 0 16px; }
+
+.up-cards { display: grid; gap: 10px; }
+
+/* Sector doors: the route choice before each wave. */
+.doors { display: grid; gap: 10px; }
+.door {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  grid-template-areas: "icon label" "icon note";
+  gap: 2px 12px;
+  align-items: center;
+  padding: 15px 16px 15px 14px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.door:active { transform: scale(.985); }
+.door:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.door-key {
+  position: absolute;
+  top: 9px; right: 12px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+}
+.door-icon { grid-area: icon; font-size: 26px; line-height: 1; text-align: center; }
+.door-label { grid-area: label; font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+.door-note { grid-area: note; font-size: 12.5px; line-height: 1.4; }
+
+.up-card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px 14px 46px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.up-card:active { transform: scale(.985); }
+.up-card:hover { border-color: rgba(77, 166, 255, .6); background: rgba(77, 166, 255, .1); }
+.up-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.up-key {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid rgba(77, 166, 255, .5);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.up-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--accent);
+}
+.up-tier {
+  margin-left: 6px;
+  font-size: 11px;
+  letter-spacing: .12em;
+  color: var(--gold);
+}
+.up-blurb { font-size: 12.5px; line-height: 1.45; color: #cddaf0; }
+.up-owned {
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.picks-left { color: var(--gold); font-weight: 700; }
+
+.reroll-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  font: 700 12px/1 inherit;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border-radius: 11px;
+  border: 1px dashed rgba(96, 148, 224, .55);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.reroll-btn:not(:disabled):hover { color: var(--accent); border-color: var(--accent); }
+.reroll-btn:disabled { opacity: .35; cursor: default; }
+
+/* Rarity reads from the card's edge and its label. */
+.up-rarity {
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.up-common { border-color: rgba(143, 163, 196, .45); }
+.up-common .up-name { color: var(--ink); }
+.up-common .up-key { border-color: rgba(143, 163, 196, .5); color: #8fa3c4; }
+.up-rare   { border-color: rgba(77, 166, 255, .6); background: rgba(77, 166, 255, .07); }
+.up-rare .up-rarity, .up-rare .up-name { color: #4da6ff; }
+.up-epic   { border-color: rgba(176, 124, 255, .7); background: rgba(176, 124, 255, .09); }
+.up-epic .up-rarity, .up-epic .up-name { color: #c9a6ff; }
+.up-epic .up-key { border-color: rgba(176, 124, 255, .6); color: #c9a6ff; }
+.up-pact   { border-color: rgba(255, 90, 43, .7); background: rgba(255, 90, 43, .09); }
+.up-pact .up-rarity, .up-pact .up-name { color: #ff8548; }
+.up-pact .up-key { border-color: rgba(255, 90, 43, .6); color: #ff8548; }
+
+.up-cost {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #ffb59a;
+}
+.up-cost::before { content: "Cost: "; font-weight: 700; letter-spacing: .04em; }
+
+/* --------------------------- Hangar --------------------------- */
+.scrap-bank {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 201, 77, .4);
+  background: rgba(255, 201, 77, .09);
+}
+.scrap-bank .k { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+.scrap-bank .v { font-size: 24px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+
+.perk-list { display: grid; gap: 9px; margin-bottom: 16px; }
+.perk {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+}
+.perk-maxed { opacity: .6; }
+.perk-locked { opacity: .55; border-style: dashed; }
+.perk-lock {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+.perk-text { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.perk-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+.perk-blurb { font-size: 12px; line-height: 1.4; color: #cddaf0; }
+
+.perk-buy {
+  flex: none;
+  min-width: 54px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 201, 77, .55);
+  background: rgba(255, 201, 77, .12);
+  color: var(--gold);
+  font: 800 13px/1 inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.perk-buy:disabled { opacity: .35; cursor: default; }
+.perk-done { border-style: dashed; background: none; cursor: default; text-align: center; }
+
+/* ------------------ Build readout while paused ----------------- */
+.pause-build {
+  margin: -4px 0 16px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+}
+.pause-build-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pause-build .run-build { margin-bottom: 0; }
+
+/* --------------------- End-of-run summary --------------------- */
+.scrap-earned {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  color: var(--gold);
+}
+.run-build {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.build-chip {
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #cddaf0;
+}
+.build-rare  { border-color: rgba(77, 166, 255, .6); color: #4da6ff; }
+.build-epic  { border-color: rgba(176, 124, 255, .7); color: #c9a6ff; }
+.build-pact  { border-color: rgba(255, 90, 43, .7); color: #ff8548; }
+
+/* ------------------------- How to play ------------------------ */
+.how-list { margin: 0 0 16px; padding-left: 18px; }
+.how-list li { margin-bottom: 11px; font-size: 13.5px; line-height: 1.5; color: #cdd4f0; }
+.how-list b { color: var(--ink); }
+
+.legend { display: grid; gap: 9px; margin-bottom: 16px; }
+.legend-item { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: #cdd4f0; }
+.legend-item b { color: var(--ink); }
+
+/* Legend swatches mirror the pickups drawn on the canvas: glyph on a dark
+   tile, ringed and lit in that power-up's colour. */
+.legend-head {
+  margin: 18px 0 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.legend-head span {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .02em;
+  text-transform: none;
+  color: var(--muted);
+}
+
+.pu {
+  flex: none;
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 10, 26, .85);
+  font-size: 11px;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+}
+.pu-twin   { color: #8dff5a; border: 1px solid #8dff5a; box-shadow: 0 0 10px rgba(141, 255, 90, .45); }
+.pu-spread { color: #4da6ff; border: 1px solid #4da6ff; box-shadow: 0 0 10px rgba(77, 166, 255, .45); }
+.pu-pierce { color: #cfe8ff; border: 1px solid #cfe8ff; box-shadow: 0 0 10px rgba(207, 232, 255, .45); }
+.pu-rapid  { color: #ffc94d; border: 1px solid #ffc94d; box-shadow: 0 0 10px rgba(255, 201, 77, .45); }
+.pu-wing   { color: #ff9f68; border: 1px solid #ff9f68; box-shadow: 0 0 10px rgba(255, 159, 104, .45); }
+.pu-bomb   { color: #ff5a2b; border: 1px solid #ff5a2b; box-shadow: 0 0 10px rgba(255, 90, 43, .45); }
+.pu-warp   { color: #a78bfa; border: 1px solid #a78bfa; box-shadow: 0 0 10px rgba(167, 139, 250, .45); }
+.pu-life   { color: #ffd166; border: 1px solid #ffd166; box-shadow: 0 0 10px rgba(255, 209, 102, .45); }
+
+.muted { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+
+/* -------------------------- Game over ------------------------- */
+.final { margin: 6px 0 14px; }
+.final-score {
+  font-size: 46px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+  text-shadow: 0 0 26px rgba(255, 201, 77, .5);
+  line-height: 1;
+}
+.final-sub { margin-top: 6px; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+
+.new-best {
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .2em;
+  color: var(--accent-2);
+  animation: pulse .7s ease-in-out infinite alternate;
+}
+
+/* Wider screens get a slightly larger panel and HUD */
+@media (min-width: 520px) {
+  .hud-value { font-size: 22px; }
+  .announce-main { font-size: 52px; }
+}

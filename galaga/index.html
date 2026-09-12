@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#05060f">
+  <title>Galaxy Raider</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="galaga.css">
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <!-- ============================ HUD ============================ -->
+  <div id="hud" class="hidden">
+    <div class="hud-row">
+      <div class="hud-block">
+        <span class="hud-label">Score</span>
+        <span id="hudScore" class="hud-value">0</span>
+        <div id="comboWrap" class="combo hidden">
+          <span id="hudMult" class="combo-mult">&times;2</span>
+          <div class="combo-bar"><div id="comboFill" class="combo-fill"></div></div>
+        </div>
+      </div>
+      <div class="hud-block center">
+        <span class="hud-label">Wave</span>
+        <span id="hudWave" class="hud-value">1</span>
+        <div id="heatWrap" class="heat hidden">
+          <span id="heatLabel" class="heat-label">ALERT</span>
+          <div class="heat-bar"><div id="heatFill" class="heat-fill"></div></div>
+        </div>
+      </div>
+      <div class="hud-block right">
+        <span class="hud-label">Best</span>
+        <span id="hudBest" class="hud-value">0</span>
+      </div>
+    </div>
+    <div class="hud-row second">
+      <div id="hudLives" class="lives"></div>
+      <div id="hudSlots" class="slots hidden"></div>
+      <div id="hudPowerup" class="powerup-chip hidden"></div>
+      <button id="pauseBtn" class="icon-btn" aria-label="Pause">❚❚</button>
+    </div>
+    <div id="bossBarWrap" class="boss-bar-wrap hidden">
+      <span id="bossName" class="boss-name">BOSS</span>
+      <div class="boss-bar"><div id="bossBarFill" class="boss-bar-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- Barrel roll: a short burst that cannot be shot down -->
+  <button id="dashBtn" class="dash-btn hidden" aria-label="Barrel roll">
+    <span class="dash-ring"></span>
+    <span class="dash-glyph">&#8634;</span>
+  </button>
+
+  <!-- Smart bombs are held, not spent on pickup: tap to detonate -->
+  <button id="bombBtn" class="bomb-btn hidden" aria-label="Detonate smart bomb">
+    <span class="bomb-ring"></span>
+    <span id="bombCount" class="bomb-count">0</span>
+  </button>
+
+  <!-- ======================== ANNOUNCEMENT ======================= -->
+  <div id="announce" class="announce hidden">
+    <div id="announceMain" class="announce-main"></div>
+    <div id="announceSub" class="announce-sub"></div>
+  </div>
+
+  <!-- =========================== MENU ============================ -->
+  <section id="menu" class="screen active">
+    <div class="panel">
+      <h1 class="logo">GALAXY<span>RAIDER</span></h1>
+      <p class="tagline">12 waves. 3 bosses. One ship.</p>
+      <button id="btnPlay" class="big-btn">Start Game</button>
+      <button id="btnHow" class="big-btn ghost">How to Play</button>
+      <div class="menu-stats">
+        <div><span class="k">Best Score</span><span id="menuBest" class="v">0</span></div>
+        <div><span class="k">Best Wave</span><span id="menuWave" class="v">1</span></div>
+        <div><span class="k">Scrap</span><span id="menuScrap" class="v">0</span></div>
+      </div>
+      <div id="threatPick" class="threat hidden">
+        <span class="threat-label">Threat Level</span>
+        <div class="threat-row">
+          <button id="threatDown" class="threat-step" aria-label="Lower threat level">&lsaquo;</button>
+          <span id="threatName" class="threat-name">Standard</span>
+          <button id="threatUp" class="threat-step" aria-label="Raise threat level">&rsaquo;</button>
+        </div>
+        <span id="threatBlurb" class="threat-blurb">The campaign as designed.</span>
+      </div>
+      <button id="btnHangar" class="big-btn ghost">Hangar</button>
+      <div class="toggles">
+        <button id="btnAuto" class="toggle" data-on="true">Auto-fire: ON</button>
+        <button id="btnSound" class="toggle" data-on="true">Sound: ON</button>
+        <button id="btnHaptics" class="toggle" data-on="true">Rumble: ON</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================== HOW TO PLAY ======================== -->
+  <section id="howto" class="screen">
+    <div class="panel scroll">
+      <h2>How to Play</h2>
+      <ul class="how-list">
+        <li><b>Move</b> — drag anywhere on the screen. Your ship follows your thumb, so you can keep it out from under your finger.</li>
+        <li><b>Shoot</b> — auto-fire is on by default. Turn it off to tap-to-fire, or use <b>Space</b> and arrow keys on a desktop.</li>
+        <li><b>Barrel roll</b> — tap the pad bottom-right (or <b>Shift</b>/<b>C</b>). You cannot be shot down mid-roll. It is your only defence, and the best place to put a patron's boon.</li>
+        <li><b>Patrons</b> — five of them, each doing one visible thing: <b>Vulcan</b> burns, <b>Tempest</b> arcs to a second raider, <b>Hunter</b> crits, <b>Bulwark</b> knocks fire out of the air, <b>Siren</b> scrambles. A boon fits a patron to one of your verbs — Cannon, Wing, Bomb, Hull or Roll — and each verb holds one patron at a time, so taking a new boon replaces what was there.</li>
+        <li><b>Sectors</b> — after each wave you choose where to go next, and the reward is shown before you commit: a named patron's boon, a repair, munitions, a salvage cache, or contested space that is harder but pays double.</li>
+        <li><b>Formations</b> — clear every raider in the wave to advance. Diving enemies are worth double.</li>
+        <li><b>Ships</b> — you start with three in reserve and can never hold more than five. At five, extra lives stop dropping and pay points instead.</li>
+        <li><b>Losses carry</b> — dying sweeps only the shots right on top of you, not the whole screen, and each ship lost costs a reroll, then a card off your next refit table. You get one emergency hull a run, and only if a boss would otherwise be met on your last ship.</li>
+        <li><b>Heat</b> — linger in a wave and the raiders start diving and firing harder. The gauge under the wave number shows the pressure building.</li>
+        <li><b>Conditions</b> — most waves from 3 on are flown under a modifier: <b>armoured</b>, <b>frenzy</b>, <b>marksmen</b>, <b>barrage</b> or <b>volatile</b>. It is announced before the wave.</li>
+        <li><b>Threat levels</b> — clear the campaign and a harder tier unlocks on the menu. Each stacks on the last.</li>
+        <li><b>Combo</b> — kills chain while the bar under your score is draining. Every five kills adds a multiplier, up to &times;8. Going quiet drops it, and so does getting hit.</li>
+        <li><b>Bosses</b> — waves 4, 8 and 12 end in a boss. Watch for the red charge glow: that means a beam is about to fire.</li>
+        <li><b>Weak points</b> — every boss has a glowing core. Hits there do double damage, and it beats faster as its armour fails.</li>
+        <li><b>Loadout</b> — every run opens with two free picks from three cards, before wave 1.</li>
+        <li><b>Refit</b> — beat a boss and you get two more picks. Cards are permanent upgrades that stack for the rest of the run; rarer ones are stronger, and <b>pacts</b> trade a real drawback for a bigger payoff. Tap a card or press <b>1</b>-<b>3</b>, and spend a reroll if you dislike the draw. Pacts only turn up after the first boss.</li>
+        <li><b>Elites</b> — raiders ringed in gold take three times the punishment, are worth three times the score, and always drop a power-up. Every wave has at least one.</li>
+        <li><b>Scrap</b> — every run banks scrap from score and, more heavily, from how deep you got, with a bounty for every boss you put down. Spend it in the <b>Hangar</b> on permanent perks that carry into all future runs. The best perks stay locked until a run has actually reached that far.</li>
+        <li><b>Capture</b> — gold command craft sometimes drop into a hover and open a tractor beam. Fly into it and your ship is taken: you lose it, and it joins the formation under its captor. Destroy that captor and the fighter flies home and docks alongside you as a <b>dual fighter</b> — twin hulls, twin guns. Take a hit as a pair and you lose the second hull instead of a life.</li>
+        <li><b>Challenging stages</b> — before each boss, a wave that does not shoot back and cannot touch you. Clear all sixteen for a perfect bonus.</li>
+        <li><b>When you lose a ship</b> — the action drops into slow motion and names what destroyed you, so you can see the pattern that caught you out.</li>
+        <li><b>Pause</b> — the pause screen lists the cards you are carrying, and toggles auto-fire, sound and rumble.</li>
+        <li><b>Power-ups</b> — scarce on purpose. Elites always leave one; beyond that only red command craft and armoured gun platforms roll for a drop, and they rarely do. Losing a ship costs you whatever you were carrying.</li>
+      </ul>
+      <h3 class="legend-head">Weapons <span>one at a time — a new one replaces the last</span></h3>
+      <div class="legend">
+        <div class="legend-item"><i class="pu pu-twin">II</i><span><b>Twin laser</b> — two parallel bolts</span></div>
+        <div class="legend-item"><i class="pu pu-spread">W</i><span><b>Spread laser</b> — three bolts in a fan, good against divers</span></div>
+        <div class="legend-item"><i class="pu pu-pierce">L</i><span><b>Hyper laser</b> — fires slower, but each bolt runs clean through a column</span></div>
+      </div>
+
+      <h3 class="legend-head">Upgrades <span>these stack on your weapon</span></h3>
+      <div class="legend">
+        <div class="legend-item"><i class="pu pu-rapid">R</i><span><b>Rapid fire</b> — roughly double the fire rate</span></div>
+        <div class="legend-item"><i class="pu pu-wing">V</i><span><b>Wingmen</b> — two drones fly your flanks and fire with you</span></div>
+      </div>
+
+      <h3 class="legend-head">Carried <span>saved until you spend it</span></h3>
+      <div class="legend">
+        <div class="legend-item"><i class="pu pu-bomb">B</i><span><b>Smart bomb</b> — stock up to three. Tap the bomb button (or <b>B</b>) to wipe every shot on screen and hit every raider at once. Bombs survive losing a ship.</span></div>
+      </div>
+
+      <h3 class="legend-head">One-shot <span>they go off the moment you touch them</span></h3>
+      <div class="legend">
+        <div class="legend-item"><i class="pu pu-warp">T</i><span><b>Time warp</b> — the raiders and their fire crawl for six seconds. You don't.</span></div>
+        <div class="legend-item"><i class="pu pu-life">1</i><span><b>Extra life</b> — rare, grab it</span></div>
+      </div>
+      <p class="muted">Survive all 12 waves and the campaign loops with tougher, faster raiders. Your run keeps going until your last ship is gone.</p>
+      <button id="btnHowBack" class="big-btn">Back</button>
+    </div>
+  </section>
+
+  <!-- ========================== HANGAR =========================== -->
+  <section id="hangar" class="screen">
+    <div class="panel scroll">
+      <h2>Hangar</h2>
+      <p class="muted">Scrap is the only thing that survives a run. Spend it here and every future run starts stronger. Locked perks open up once a run has reached the wave on the card.</p>
+      <div class="scrap-bank"><span class="k">Scrap</span><span id="hangarScrap" class="v">0</span></div>
+      <div id="hangarList" class="perk-list"></div>
+      <button id="btnHangarBack" class="big-btn">Back</button>
+    </div>
+  </section>
+
+  <!-- ======================= UPGRADE CHOICE ====================== -->
+  <section id="upgrade" class="screen">
+    <div class="panel upgrade-panel">
+      <h2 id="upgradeTitle">Refit</h2>
+      <p class="muted upgrade-sub"><span id="upgradeSub">Picks last the rest of the run.</span> <span id="upgradePicks" class="picks-left">Pick one</span></p>
+      <div id="upgradeCards" class="up-cards"></div>
+      <button id="rerollBtn" class="reroll-btn">Reroll (1)</button>
+    </div>
+  </section>
+
+  <!-- ========================= SECTOR PICK ======================= -->
+  <section id="sector" class="screen">
+    <div class="panel upgrade-panel">
+      <h2>Choose your approach</h2>
+      <p class="muted upgrade-sub">Each sector pays differently. Pick the one your run needs.</p>
+      <div id="sectorCards" class="doors"></div>
+    </div>
+  </section>
+
+  <!-- ========================== PAUSED =========================== -->
+  <section id="paused" class="screen">
+    <div class="panel">
+      <h2>Paused</h2>
+      <div id="pauseBuild" class="pause-build hidden">
+        <span class="pause-build-label">Your build</span>
+        <div id="pauseBuildChips" class="run-build"></div>
+      </div>
+      <button id="btnResume" class="big-btn">Resume</button>
+      <div class="toggles">
+        <button id="btnAuto2" class="toggle" data-on="true">Auto-fire: ON</button>
+        <button id="btnSound2" class="toggle" data-on="true">Sound: ON</button>
+        <button id="btnHaptics2" class="toggle" data-on="true">Rumble: ON</button>
+      </div>
+      <button id="btnQuit" class="big-btn ghost">Quit to Menu</button>
+    </div>
+  </section>
+
+  <!-- ========================= GAME OVER ========================= -->
+  <section id="gameover" class="screen">
+    <div class="panel">
+      <h2 id="overTitle">Game Over</h2>
+      <div class="final">
+        <div class="final-score" id="finalScore">0</div>
+        <div class="final-sub" id="finalSub">Wave 1</div>
+      </div>
+      <div id="scrapEarned" class="scrap-earned hidden">+0 scrap</div>
+      <div id="runBuild" class="run-build hidden"></div>
+      <div id="newBest" class="new-best hidden">NEW HIGH SCORE!</div>
+      <button id="btnAgain" class="big-btn">Play Again</button>
+      <button id="btnMenu" class="big-btn ghost">Main Menu</button>
+    </div>
+  </section>
+</div>
+
+<script src="galaga.js"></script>
+</body>
+</html>
