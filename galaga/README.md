@@ -96,6 +96,66 @@ Bulwark on the Roll sweeps the screen clear as you pass through it.
 Alongside the boons, the quartermaster's shelf still carries the flat
 utility a run needs — spare ships, bomb racks, fire rate — and pacts.
 
+### Duos
+
+Fly two patrons at once and a card appears that only makes sense with both
+of them. Duos are global rather than fitted to a verb, cap at one each, and
+only enter the pool once both of their patrons are actually in a slot.
+
+| Duo | Patrons | Effect |
+| --- | --- | --- |
+| Firestorm | Vulcan + Tempest | Arcs set what they hit burning |
+| Kindling | Vulcan + Hunter | Burning raiders take double flame damage |
+| Forge Shield | Vulcan + Bulwark | Every shot you knock down bursts into fire |
+| Slow Burn | Vulcan + Siren | Anything you set alight is scrambled too |
+| Chain Lightning | Tempest + Hunter | Arcs can land critical hits |
+| Grounding Rod | Tempest + Bulwark | Knocking a shot down throws a bolt at a raider |
+| Static Field | Tempest + Siren | Arcs scramble what they hit |
+| Counter Sniper | Hunter + Bulwark | Knocking a shot down loads a guaranteed crit |
+| Easy Mark | Hunter + Siren | Scrambled raiders are twice as likely to take a crit |
+| Null Field | Bulwark + Siren | Scrambling a raider sweeps the fire around it |
+
+## Salvage chips and the depot
+
+Raiders drop **chips** as they die — roughly one in three, and three from
+every elite. Chips are an in-run purse, shown beside your ships, and they
+die with the run; they are not scrap and never reach the hangar.
+
+Pick the **Supply Run** sector and you fight through to a depot, where they
+buy exactly what the run is short of:
+
+| | Cost |
+| --- | --- |
+| Patron Contract — a boon from any patron | 55 |
+| Hull Section — a ship back in reserve | 70 |
+| Munitions — two smart bombs | 35 |
+| Requisition — two refit rerolls | 28 |
+| Strip a Mount — clear a fitted verb | 40 |
+
+Stripping a mount is the answer to a build that went the wrong way: it frees
+a verb so a different patron can take it, and puts the old boon back in the
+pool.
+
+## Keepsakes
+
+One item, chosen on the menu before launch, that shapes the run. The two
+neutral ones are there from the start; each patron's keepsake is earned by
+clearing four waves with that patron fitted, so the shelf doubles as a
+record of what you have actually flown.
+
+| Keepsake | Effect |
+| --- | --- |
+| Lucky Chip | Launch with 60 salvage chips |
+| Field Manual | Launch with two extra refit rerolls |
+| Banked Ember | First contact is VULCAN; flames burn 50% longer |
+| Storm Glass | First contact is TEMPEST; arcs reach 50% further |
+| Notched Sight | First contact is HUNTER; crits land more often |
+| Dented Plate | First contact is BULWARK; sweeps a wider field |
+| Cracked Lens | First contact is SIREN; scrambles hold 60% longer |
+
+The shelf stays hidden until you have finished a run, so a first game is not
+cluttered with choices that mean nothing yet.
+
 ## Sector doors
 
 After every ordinary wave you choose the next sector, with its reward shown
@@ -108,6 +168,7 @@ before you commit:
 | Munitions Depot | Two smart bombs |
 | Salvage Cache | A refit reroll and a score bounty |
 | Contested Space | Fought under a forced condition — pays two boons |
+| Supply Run | Fight through to a depot and spend your chips |
 
 The reward lands when that wave is cleared, so the route through a run is
 chosen rather than handed to you. Boss waves pay their own refit as before.
