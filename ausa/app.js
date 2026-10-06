@@ -23,32 +23,54 @@
 
   /* ============================== unlock ============================== */
   const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  // The encrypted box is either inlined in the page (<script id="enc">) or fetched from data.enc.
+  async function loadBox() {
+    const inline = document.getElementById('enc');
+    if (inline) return JSON.parse(inline.textContent);
+    let res;
+    try { res = await fetch('data.enc', { cache: 'no-cache' }); }
+    catch { throw new Error('Could not download the data. Check your connection and try again.'); }
+    if (!res.ok) throw new Error('Could not download the data (error ' + res.status + '). Try reloading the page.');
+    return res.json();
+  }
   async function decrypt(pass) {
-    const res = await fetch('data.enc', { cache: 'no-cache' });
-    if (!res.ok) throw new Error('Could not load data (' + res.status + ')');
-    const box = await res.json();
+    if (!window.crypto || !crypto.subtle) throw new Error('This browser cannot unlock the data. Open the link in Safari or Chrome (not an in-app browser) and make sure the phone is up to date.');
+    const box = await loadBox();
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
     const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(box.salt), iterations: box.iter, hash: 'SHA-256' },
       base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
     let plain;
     try { plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(box.iv) }, key, b64(box.ct)); }
-    catch { throw new Error('Wrong passphrase'); }
+    catch { const e = new Error('Wrong passphrase. Check spelling and capital letters.'); e.wrong = true; throw e; }
     if (box.gz) {
+      if (typeof DecompressionStream === 'undefined') throw new Error('This browser is too old to open the data. Update the phone, or open the link in Chrome.');
       const stream = new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'));
       return JSON.parse(await new Response(stream).text());
     }
     return JSON.parse(new TextDecoder().decode(plain));
+  }
+  // Phone keyboards often capitalize the first letter or add a trailing space; try those variants too.
+  async function decryptAny(pass) {
+    const tries = [...new Set([pass, pass.trim(), pass.trim().toLowerCase()])].filter(Boolean);
+    let err;
+    for (const t of tries) {
+      try { return [await decrypt(t), t]; }
+      catch (e) { err = e; if (!e.wrong) throw e; }
+    }
+    throw err || new Error('Enter the passphrase.');
   }
 
   async function unlock(pass, remember) {
     const btn = $('#unlockBtn');
     btn.disabled = true; btn.textContent = 'Unlocking…'; $('#lockErr').textContent = '';
     try {
-      D = await decrypt(pass);
-      if (remember) LS.set('ausa-pass', pass);
+      const [data, used] = await decryptAny(pass);
+      D = data;
+      if (remember) LS.set('ausa-pass', used);
       init();
     } catch (e) {
-      LS.del('ausa-pass');
+      console.error(e);
+      if (e.wrong) LS.del('ausa-pass');
       $('#lockErr').textContent = e.message || 'Could not unlock';
       $('#lock').classList.remove('hidden');
     } finally { btn.disabled = false; btn.textContent = 'Unlock'; }
@@ -81,7 +103,8 @@
     $('#app').classList.remove('hidden');
     buildChips();
     setView(state.view);
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Offline cache; unavailable (and throws on access) inside sandboxed frames such as a shared artifact.
+    try { navigator.serviceWorker?.register('sw.js').catch(() => {}); } catch { /* no offline cache here */ }
   }
 
   const isVisited = e => visited.has(e.key);
@@ -384,9 +407,10 @@
 
   /* ============================== detail sheet ============================== */
   const stack = [];
+  let useHistory = true;
   function pushSheet(title, render) {
     stack.push({ title, render });
-    history.pushState({ sheet: stack.length }, '');
+    try { history.pushState({ sheet: stack.length }, ''); useHistory = true; } catch { useHistory = false; }
     showTop();
   }
   function showTop() {
@@ -398,7 +422,9 @@
   function closeSheet(all) {
     if (!stack.length) return;
     const n = all ? stack.length : 1;
-    history.go(-n);
+    if (useHistory) { try { history.go(-n); return; } catch { /* fall through */ } }
+    stack.splice(stack.length - n, n);
+    if (stack.length) showTop(); else { $('#sheet').classList.add('hidden'); rerender(); }
   }
   window.addEventListener('popstate', () => {
     const want = history.state?.sheet || 0;
@@ -502,7 +528,7 @@
   });
 
   /* ============================== boot ============================== */
-  history.replaceState({ sheet: 0 }, '');
+  try { history.replaceState({ sheet: 0 }, ''); } catch { useHistory = false; }
   const saved = LS.get('ausa-pass', null);
   if (saved) { $('#lock').classList.add('hidden'); unlock(saved, true); }
 })();
