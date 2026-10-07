@@ -101,10 +101,10 @@
     }
     EX.forEach(e => { e.mine = e.visit || !!e.route || e.emails.length > 0; e.hay = norm([e.name, e.booth, e.contacts, e.firm, e.notes, e.lobbyist, e.area, e.route?.note].join(' ')); });
     D.emails.forEach(m => { m.hay = norm([m.subject, m.fromName, m.represents, m.takeaway, m.body, m.to, m.cc].join(' ')); });
-    DIR = [
-      ...EX.filter(e => e.booth !== 'Off-floor').map(e => ({ name: e.name, booth: e.booth, day: e.floorDay ?? null, ex: e.i, note: e.location })),
-      ...(D.planOnly || []).map(p => ({ name: p.name, booth: p.booth, day: p.day, ex: null, plan: true })),
-    ].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    // Directory = AUSA's official 2026 exhibitor list (plus your few on-floor companies it omits), linked to your list by `ex`.
+    const floorOf = b => /^\d+$/.test(b) ? (+b < 5000 ? 1 : +b < 9000 ? 2 : null) : (D.pins[b]?.[0] ?? null);
+    DIR = D.directory.map(r => ({ name: r.name, booth: r.booth, day: floorOf(r.booth), ex: r.ex, note: r.loc, unlisted: !!r.unlisted }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     DIR.forEach((d, i) => { d.di = i; d.hay = norm(d.name + ' ' + d.booth); });
 
     $('#lock').classList.add('hidden');
@@ -311,7 +311,7 @@
     const list = toks.length
       ? DIR.map(d => [d, dirScore(d, toks, raw)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1] || a[0].di - b[0].di).map(x => x[0])
       : DIR;
-    let html = `<div class="meta">${toks.length ? `${list.length} of ${DIR.length} exhibitors match` : `All ${DIR.length} exhibitors on the 2026 floor, A-Z`}. Look up anyone and see their booth on the plain floor plan. This list is separate from your route and visit list.</div>`;
+    let html = `<div class="meta">${toks.length ? `${list.length} of ${DIR.length} exhibitors match` : `All ${DIR.length} exhibitors on AUSA's official 2026 list, A-Z`}. Look up anyone and see their booth on the plain floor plan. This list is separate from your route and visit list.</div>`;
     if (list.length) html += `<div class="list">${list.slice(0, state.shown).map(d => dirRow(d, re)).join('')}</div>`;
     else html += `<div class="empty">No exhibitor matches “${esc(raw)}”.<br>Try part of the name or a booth number.</div>`;
     if (list.length > state.shown) html += `<button class="more" data-more>Show more (${list.length - state.shown} left)</button>`;
@@ -329,7 +329,7 @@
       <div class="hero-grid"><div class="bigbooth"><small>Booth</small>${esc(boothText(d.booth))}</div>
       <div><div class="when">${d.day ? (d.day === 1 ? 'Lower Level' : 'Upper Level') : 'No floor booth'}</div><div class="when-sub">${d.day ? (d.day === 1 ? 'Halls A, B, C' : 'Halls D, E') + ' · open all three show days' : esc(d.note || '')}</div></div></div>`;
     if (e && e.mine) html += `<div class="callout"><b>★ On your list</b>Your route stop, notes and emails for this company are in My list.</div>`;
-    if (d.plan) html += `<div class="callout"><b>From the 2026 floor plan</b>This company is printed on the floor plan but missing from the exhibitor list you pulled.</div>`;
+    if (d.unlisted) html += `<div class="callout"><b>Not on AUSA's official list</b>Your emails place this company in booth ${esc(d.booth)}.</div>`;
     if (!L && d.day) html += `<div class="callout">Booth ${esc(d.booth)} isn't labeled on the floor plan.</div>`;
     html += `<div class="actions">${L ? `<button class="btn primary" data-map="${L.day}|${esc(d.booth)}|plan">Show on floor plan</button>` : ''}${e && e.mine ? `<button class="btn" data-ex="${e.i}">Open in My list</button>` : ''}</div></div>`;
     if (L) html += minimap(L, d.booth, 'plan');
