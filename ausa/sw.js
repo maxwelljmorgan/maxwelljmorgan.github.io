@@ -1,6 +1,6 @@
 /* Offline cache for the AUSA floor-walk app (convention-center Wi-Fi is unreliable). */
-const CACHE = 'ausa-walk-v1';
-const ASSETS = ['./', 'index.html', 'app.css', 'app.js', 'data.enc', 'map-day1.jpg', 'map-day2.jpg', 'icon.svg', 'manifest.json'];
+const CACHE = 'ausa-walk-v2';
+const ASSETS = ['./', 'index.html', 'app.css', 'app.js', 'data.enc', 'map-day1.jpg', 'map-day2.jpg', 'plan-day1.jpg', 'plan-day2.jpg', 'icon.svg', 'manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

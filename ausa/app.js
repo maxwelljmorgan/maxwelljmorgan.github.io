@@ -15,11 +15,14 @@
 
   let D = null;                 // decrypted data
   let EX = [];                  // exhibitors
+  let DIR = [];                 // every exhibitor on the floor (directory), sorted by name
   let MAIL = {};                // emails by number
   const ROUTE = { 1: [], 2: [] }; // flat stops in walking order: {booth,name,kind,note,aisle,label,ex}
   const MUST_COUNT = { 1: 0, 2: 0 };
   let visited = new Set(LS.get('ausa-visited', []));
-  const state = { view: 'search', chip: LS.get('ausa-chip', 'mine'), q: '', routeDay: LS.get('ausa-day', 1), mapDay: 1, mapZoom: null, focus: null, shown: 60 };
+  const state = { view: 'search', chip: LS.get('ausa-chip', 'mine'), q: '', routeDay: LS.get('ausa-day', 1), mapDay: 1, mapLayer: 'route', mapZoom: null, focus: null, shown: 60 };
+  if (state.chip === 'all') state.chip = 'mine';
+  const FLOOR = { 1: 'Lower Level · Halls A-C', 2: 'Upper Level · Halls D-E' };
 
   /* ============================== unlock ============================== */
   const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -98,6 +101,11 @@
     }
     EX.forEach(e => { e.mine = e.visit || !!e.route || e.emails.length > 0; e.hay = norm([e.name, e.booth, e.contacts, e.firm, e.notes, e.lobbyist, e.area, e.route?.note].join(' ')); });
     D.emails.forEach(m => { m.hay = norm([m.subject, m.fromName, m.represents, m.takeaway, m.body, m.to, m.cc].join(' ')); });
+    DIR = [
+      ...EX.filter(e => e.booth !== 'Off-floor').map(e => ({ name: e.name, booth: e.booth, day: e.floorDay ?? null, ex: e.i, note: e.location })),
+      ...(D.planOnly || []).map(p => ({ name: p.name, booth: p.booth, day: p.day, ex: null, plan: true })),
+    ].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    DIR.forEach((d, i) => { d.di = i; d.hay = norm(d.name + ' ' + d.booth); });
 
     $('#lock').classList.add('hidden');
     $('#app').classList.remove('hidden');
@@ -115,7 +123,7 @@
 
   /* ============================== header / nav ============================== */
   const CHIPS = [
-    ['mine', 'My list'], ['d1', 'Day 1 · Mon'], ['d2', 'Day 2 · Tue'], ['off', 'Off-floor & events'], ['mail', 'Has emails'], ['todo', 'Not yet visited'], ['all', 'All exhibitors'],
+    ['mine', 'My list'], ['d1', 'Day 1 · Mon'], ['d2', 'Day 2 · Tue'], ['off', 'Off-floor & events'], ['mail', 'Has emails'], ['todo', 'Not yet visited'],
   ];
   function buildChips() {
     $('#chips').innerHTML = CHIPS.map(([k, l]) => `<button class="chip${state.chip === k ? ' on' : ''}" data-chip="${k}">${l}</button>`).join('');
@@ -134,8 +142,8 @@
     document.querySelectorAll('.view').forEach(s => s.classList.toggle('hidden', s.id !== 'view-' + v));
     $('.search-wrap').classList.toggle('hidden', v === 'route' || v === 'map');
     $('#chips').classList.toggle('hidden', v !== 'search');
-    $('#q').placeholder = v === 'mail' ? 'Search all 65 emails' : 'Company, booth, contact or keyword';
-    ({ search: renderSearch, route: renderRoute, map: renderMap, mail: renderMail })[v]();
+    $('#q').placeholder = v === 'mail' ? 'Search all 65 emails' : v === 'dir' ? `Any of ${DIR.length} exhibitors, or a booth number` : 'Search your companies, contacts, notes';
+    ({ search: renderSearch, route: renderRoute, dir: renderDir, map: renderMap, mail: renderMail })[v]();
     window.scrollTo(0, 0);
   }
   let qTimer;
@@ -144,7 +152,7 @@
     qTimer = setTimeout(() => {
       state.q = $('#q').value.trim(); state.shown = 60;
       $('#qClear').classList.toggle('hidden', !state.q);
-      state.view === 'mail' ? renderMail() : renderSearch();
+      ({ mail: renderMail, dir: renderDir })[state.view]?.() ?? renderSearch();
     }, 90);
   });
   $('#q').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
@@ -164,6 +172,7 @@
     return s;
   }
   function chipFilter(e) {
+    if (!e.mine) return false;   // the Search tab is your list only; everyone else lives in the Directory tab
     switch (state.chip) {
       case 'd1': return e.day === 1;
       case 'd2': return e.day === 2;
@@ -224,11 +233,9 @@
     let list = EX.filter(chipFilter);
     let html = '';
     if (!toks.length) {
-      if (state.chip === 'mine' || state.chip === 'todo') list = list.filter(e => e.mine);
       list.sort((a, b) => routeOrder(a) - routeOrder(b) || a.name.localeCompare(b.name));
-      if (state.chip === 'all') list.sort((a, b) => a.name.localeCompare(b.name));
-      html += `<div class="meta">${list.length} ${state.chip === 'all' ? 'exhibitors' : 'companies'} · tap one for booth, day, route stop and emails</div>`;
-      const groups = state.chip === 'all' ? [['', list]] : [
+      html += `<div class="meta">${list.length} companies on your list · tap one for booth, day, route stop and emails. Looking for someone else? Use <b>Directory</b>.</div>`;
+      const groups = [
         ['Day 1 · Mon 12 Oct · Lower Level (Halls A-C), walking order', list.filter(e => e.day === 1)],
         ['Day 2 · Tue 13 Oct · Upper Level (Halls D-E), walking order', list.filter(e => e.day === 2)],
         ['Off the floor / events / no booth', list.filter(e => !e.day)],
@@ -245,17 +252,16 @@
     }
     const scored = list.map(e => [e, score(e, toks, raw)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1] || a[0].name.localeCompare(b[0].name)).map(x => x[0]);
     const mails = D.emails.filter(m => toks.every(t => m.hay.includes(t)));
-    const mine = state.chip === 'mine' ? scored.filter(e => e.mine) : scored;
-    const other = state.chip === 'mine' ? scored.filter(e => !e.mine) : [];
-    if (mine.length) html += `<div class="group-h">${state.chip === 'mine' ? 'On your list' : 'Exhibitors'} (${mine.length})</div><div class="list">${mine.slice(0, state.shown).map(e => exRow(e, re)).join('')}</div>`;
-    if (other.length) html += `<div class="group-h">Other exhibitors (${other.length})</div><div class="list">${other.slice(0, Math.max(10, state.shown - mine.length)).map(e => exRow(e, re)).join('')}</div>`;
+    if (scored.length) html += `<div class="group-h">On your list (${scored.length})</div><div class="list">${scored.slice(0, state.shown).map(e => exRow(e, re)).join('')}</div>`;
     if (scored.length > state.shown) html += `<button class="more" data-more>Show more</button>`;
+    const dirHits = DIR.filter(d => !(d.ex != null && EX[d.ex].mine) && dirScore(d, toks, raw) > 0).length;
+    if (dirHits) html += `<button class="more" data-goto-dir>${dirHits} other exhibitor${dirHits > 1 ? 's' : ''} match “${esc(raw)}” in the Directory ›</button>`;
     if (mails.length) {
       html += `<div class="group-h">Emails mentioning “${esc(raw)}” (${mails.length})</div><div class="list">` + mails.slice(0, 12).map(m =>
         `<button class="row" data-mail="${m.n}"><span class="booth off">#${m.n}</span><span class="row-main"><div class="row-name">${hl(m.subject, re)}</div><div class="row-sub">${esc(m.fromName)} · ${esc(m.represents)}</div><div class="snip">${hl(snippet(m.subject + ' ' + m.body, toks), re)}</div></span><span class="chev">›</span></button>`).join('') + '</div>';
       if (mails.length > 12) html += `<button class="more" data-goto-mail>See all ${mails.length} emails</button>`;
     }
-    el.innerHTML = html || `<div class="empty">No matches for “${esc(raw)}”.<br>Try a booth number, contact name or part of the company name.</div>`;
+    el.innerHTML = html || `<div class="empty">No matches for “${esc(raw)}” on your list or in the emails.</div>`;
   }
 
   document.addEventListener('click', e => {
@@ -270,12 +276,74 @@
     const ml = t.closest('[data-mail]'); if (ml) { openMail(+ml.dataset.mail); return; }
     if (t.closest('[data-more]')) { state.shown += 120; rerender(); return; }
     if (t.closest('[data-goto-mail]')) { setView('mail'); return; }
+    if (t.closest('[data-goto-dir]')) { state.shown = 60; setView('dir'); return; }
+    const dr = t.closest('[data-dir]'); if (dr) { openDir(+dr.dataset.dir); return; }
     const mp = t.closest('[data-map]');
-    if (mp) { const [d, b] = mp.dataset.map.split('|'); showOnMap(+d, b); return; }
+    if (mp) { const [d, b, layer] = mp.dataset.map.split('|'); showOnMap(+d, b, layer); return; }
   });
   function rerender() {
     if (!$('#sheet').classList.contains('hidden') && stack.length) stack[stack.length - 1].render(true);
-    ({ search: renderSearch, route: renderRoute, map: () => {}, mail: renderMail })[state.view]();
+    ({ search: renderSearch, route: renderRoute, dir: renderDir, map: () => {}, mail: renderMail })[state.view]();
+  }
+
+  /* ============================== directory (any exhibitor) ============================== */
+  function dirScore(d, toks, raw) {
+    if (!toks.length) return 1;
+    if (!toks.every(t => d.hay.includes(t))) return 0;
+    const n = norm(d.name), q = toks.join(' ');
+    let s = 1;
+    if (d.booth.toLowerCase() === raw.toLowerCase()) s += 200;
+    if (n === q) s += 150; else if (n.startsWith(q)) s += 100; else if ((' ' + n).includes(' ' + q)) s += 60; else if (n.includes(q)) s += 40;
+    return s;
+  }
+  const boothText = b => b === 'AUSAPavilion' ? 'AUSA Pav.' : b;
+  function dirRow(d, re) {
+    const e = d.ex != null ? EX[d.ex] : null;
+    const where = d.day ? FLOOR[d.day] : (d.note || 'No booth listed');
+    const tags = [`<span class="tag">${esc(where)}</span>`];
+    if (e && e.mine) tags.push('<span class="tag mine">★ On my list</span>');
+    if (!locOf(d.booth)) tags.push('<span class="tag">Not on map</span>');
+    const off = !/^\d+$|^OD/.test(d.booth);
+    return `<button class="row" data-dir="${d.di}"><span class="booth${off ? ' off' : ''}">${esc(boothText(d.booth))}</span><span class="row-main"><div class="row-name">${hl(d.name, re)}</div><div class="tags">${tags.join('')}</div></span><span class="chev">›</span></button>`;
+  }
+  function renderDir() {
+    const raw = state.q, toks = tokens(raw), re = hlRegex(toks);
+    const list = toks.length
+      ? DIR.map(d => [d, dirScore(d, toks, raw)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1] || a[0].di - b[0].di).map(x => x[0])
+      : DIR;
+    let html = `<div class="meta">${toks.length ? `${list.length} of ${DIR.length} exhibitors match` : `All ${DIR.length} exhibitors on the 2026 floor, A-Z`}. Look up anyone and see their booth on the plain floor plan. This list is separate from your route and visit list.</div>`;
+    if (list.length) html += `<div class="list">${list.slice(0, state.shown).map(d => dirRow(d, re)).join('')}</div>`;
+    else html += `<div class="empty">No exhibitor matches “${esc(raw)}”.<br>Try part of the name or a booth number.</div>`;
+    if (list.length > state.shown) html += `<button class="more" data-more>Show more (${list.length - state.shown} left)</button>`;
+    $('#view-dir').innerHTML = html;
+  }
+  function openDir(di) {
+    const d = DIR[di];
+    pushSheet(d.name, () => renderDirDetail(d));
+  }
+  function renderDirDetail(d) {
+    const e = d.ex != null ? EX[d.ex] : null;
+    const L = locOf(d.booth);
+    const others = DIR.filter(x => x.booth === d.booth && x !== d && /^\d+$|^OD/.test(d.booth));
+    let html = `<div class="hero"><h2>${esc(d.name)}</h2>
+      <div class="hero-grid"><div class="bigbooth"><small>Booth</small>${esc(boothText(d.booth))}</div>
+      <div><div class="when">${d.day ? (d.day === 1 ? 'Lower Level' : 'Upper Level') : 'No floor booth'}</div><div class="when-sub">${d.day ? (d.day === 1 ? 'Halls A, B, C' : 'Halls D, E') + ' · open all three show days' : esc(d.note || '')}</div></div></div>`;
+    if (e && e.mine) html += `<div class="callout"><b>★ On your list</b>Your route stop, notes and emails for this company are in My list.</div>`;
+    if (d.plan) html += `<div class="callout"><b>From the 2026 floor plan</b>This company is printed on the floor plan but missing from the exhibitor list you pulled.</div>`;
+    if (!L && d.day) html += `<div class="callout">Booth ${esc(d.booth)} isn't labeled on the floor plan.</div>`;
+    html += `<div class="actions">${L ? `<button class="btn primary" data-map="${L.day}|${esc(d.booth)}|plan">Show on floor plan</button>` : ''}${e && e.mine ? `<button class="btn" data-ex="${e.i}">Open in My list</button>` : ''}</div></div>`;
+    if (L) html += minimap(L, d.booth, 'plan');
+    if (others.length) html += `<div class="section"><h3>Also at booth ${esc(d.booth)} (${others.length})</h3><div class="list">${others.slice(0, 40).map(x => dirRow(x, null)).join('')}</div></div>`;
+    $('#sheetBody').innerHTML = html;
+    $('#sheetBody').scrollTop = 0;
+  }
+  function openDirBooth(b) {
+    const list = DIR.filter(d => d.booth === b);
+    if (!list.length) return;
+    if (list.length === 1) return openDir(list[0].di);
+    pushSheet('Booth ' + b, () => {
+      $('#sheetBody').innerHTML = `<div class="meta">${list.length} exhibitors share booth ${esc(b)}</div><div class="list">${list.map(d => dirRow(d, null)).join('')}</div>`;
+    });
   }
 
   /* ============================== route ============================== */
@@ -288,7 +356,7 @@
     let html = `<div class="seg">${[1, 2].map(k => `<button data-rday="${k}" class="${k === day ? 'on' : ''}">${DAY_TAG[k]}</button>`).join('')}</div>
       <div class="day-head"><h2>${esc(d.title)}: ${esc(d.floor)}</h2><p>${esc(d.summary)}</p><p><b>Start:</b> ${esc(d.start)}</p>
       <div class="progress"><div style="width:${(100 * done / must.length).toFixed(1)}%"></div></div><p>${done} of ${must.length} must-see visited${next ? ` · next: <b>${esc(next.booth)} ${esc(next.name)}</b>` : ' · all done!'}</p>
-      <div class="actions"><button class="btn" data-map="${day}|">Open ${day === 1 ? 'Day 1' : 'Day 2'} map</button></div></div>
+      <div class="actions"><button class="btn" data-map="${day}||route">Open ${day === 1 ? 'Day 1' : 'Day 2'} map</button></div></div>
       <div class="group-h">Off the floor / timed</div><div class="list timed">${d.timed.map(t => `<div class="row"><span class="time">${esc(t.time)}</span><span class="row-main"><div class="row-name">${esc(t.what)}</div><div class="row-sub" style="white-space:normal">${esc(t.detail)}</div></span></div>`).join('')}</div>`;
     for (const a of d.aisles) {
       const iftime = a.label === 'if time';
@@ -312,25 +380,61 @@
   });
 
   /* ============================== map ============================== */
-  const MAPS = { 1: { src: 'map-day1.jpg', ar: 4748 / 1874 }, 2: { src: 'map-day2.jpg', ar: 4797 / 2437 } };
-  function showOnMap(day, booth) {
+  // Both layers share one geometry: the route maps are the plain floor plans with the walk drawn on.
+  const MAPS = { 1: { route: 'map-day1.jpg', plan: 'plan-day1.jpg', ar: 4748 / 1874 }, 2: { route: 'map-day2.jpg', plan: 'plan-day2.jpg', ar: 4797 / 2437 } };
+  // Where a booth is: {day, x, y, box?}, from the booth outline on the plan or else its printed number.
+  function locOf(booth) {
+    const b = D.boxes?.[booth], p = D.pins[booth];
+    if (!b && !p) return null;
+    const box = b ? b.slice(1) : null;
+    return { day: b ? b[0] : p[0], x: p && (!b || p[0] === b[0]) ? p[1] : (box[0] + box[2]) / 2, y: p && (!b || p[0] === b[0]) ? p[2] : (box[1] + box[3]) / 2, box };
+  }
+  function boothAt(day, x, y, w, h) {
+    let hit = null, area = Infinity;
+    for (const [b, v] of Object.entries(D.boxes || {})) {
+      if (v[0] !== day || x < v[1] || x > v[3] || y < v[2] || y > v[4]) continue;
+      const a = (v[3] - v[1]) * (v[4] - v[2]);
+      if (a < area) { area = a; hit = b; }
+    }
+    if (hit) return hit;
+    let best = null, bd = Infinity;
+    for (const [b, p] of Object.entries(D.pins)) {
+      if (p[0] !== day) continue;
+      const dd = Math.hypot((p[1] - x) * w, (p[2] - y) * h);
+      if (dd < bd) { bd = dd; best = b; }
+    }
+    return bd < 40 ? best : null;
+  }
+  const marks = (L, pct) => (L.box ? `<span class="hlbox" style="left:${L.box[0] * 100}%;top:${L.box[1] * 100}%;width:${(L.box[2] - L.box[0]) * 100}%;height:${(L.box[3] - L.box[1]) * 100}%"></span>` : '')
+    + `<span class="pulse" style="left:${pct ? L.x * 100 + '%' : '50%'};top:${pct ? L.y * 100 + '%' : '105px'}"></span><span class="pin" style="left:${pct ? L.x * 100 + '%' : '50%'};top:${pct ? L.y * 100 + '%' : '105px'}"></span>`;
+  function minimap(L, booth, layer) {
+    const m = MAPS[L.day], W = L.day === 1 ? 2600 : 1900, H = W / m.ar;
+    const left = `calc(50% - ${L.x * W}px)`, top = 105 - L.y * H;
+    const box = L.box ? `<span class="hlbox" style="left:calc(50% + ${(L.box[0] - L.x) * W}px);top:${105 + (L.box[1] - L.y) * H}px;width:${(L.box[2] - L.box[0]) * W}px;height:${(L.box[3] - L.box[1]) * H}px"></span>` : '';
+    return `<div class="minimap" data-map="${L.day}|${esc(booth)}|${layer}"><img src="${m[layer]}" alt="" style="width:${W}px;left:${left};top:${top}px">
+      ${box}<span class="pulse" style="left:50%;top:105px"></span><span class="pin" style="left:50%;top:105px"></span><button class="open">Open map ›</button></div>`;
+  }
+  function showOnMap(day, booth, layer) {
     closeSheet(true);
     state.mapDay = day; state.focus = booth || null; state.mapZoom = null;
+    if (layer) state.mapLayer = layer;
     setView('map');
   }
   function renderMap() {
-    const day = state.mapDay, m = MAPS[day];
-    const pin = state.focus && D.pins[state.focus] && D.pins[state.focus][0] === day ? D.pins[state.focus] : null;
-    const who = state.focus ? EX.filter(e => e.booth === state.focus).map(e => e.name) : [];
-    $('#view-map').innerHTML = `<div class="map-tools"><div class="seg">${[1, 2].map(k => `<button data-mday="${k}" class="${k === day ? 'on' : ''}">${k === 1 ? 'Day 1 · A-C' : 'Day 2 · D-E'}</button>`).join('')}</div>
+    const day = state.mapDay, m = MAPS[day], layer = state.mapLayer;
+    const L0 = state.focus ? locOf(state.focus) : null;
+    const pin = L0 && L0.day === day ? L0 : null;
+    const who = state.focus ? (layer === 'plan' ? DIR : EX).filter(e => e.booth === state.focus).map(e => e.name) : [];
+    $('#view-map').innerHTML = `<div class="seg">${[['route', 'My route'], ['plan', 'Floor plan (all booths)']].map(([k, l]) => `<button data-mlayer="${k}" class="${k === layer ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="map-tools"><div class="seg">${[1, 2].map(k => `<button data-mday="${k}" class="${k === day ? 'on' : ''}">${k === 1 ? 'Day 1 · A-C' : 'Day 2 · D-E'}</button>`).join('')}</div>
       <button class="zbtn" data-zoom="-1" aria-label="Zoom out">−</button><button class="zbtn" data-zoom="1" aria-label="Zoom in">+</button></div>
-      <div class="mapbox" id="mapbox"><div class="mapinner" id="mapinner"><img src="${m.src}" alt="Day ${day} floor plan with route" draggable="false">
-      ${pin ? `<span class="pulse" style="left:${pin[1] * 100}%;top:${pin[2] * 100}%"></span><span class="pin" style="left:${pin[1] * 100}%;top:${pin[2] * 100}%"></span>` : ''}</div></div>
-      <div class="map-cap">${pin ? `<b>Booth ${esc(state.focus)}</b>: ${esc(who.join(', '))}.` : state.focus ? `Booth ${esc(state.focus)} isn't labeled on this map.` : 'Pinch or use +/− to zoom. Tap a booth to see who is there.'} Red pills are must-see stops, amber are if-time.</div>`;
+      <div class="mapbox" id="mapbox"><div class="mapinner" id="mapinner"><img src="${m[layer]}" alt="${layer === 'route' ? 'Floor plan with your route' : 'Floor plan'}" draggable="false">
+      ${pin ? marks(pin, true) : ''}</div></div>
+      <div class="map-cap">${pin ? `<b>Booth ${esc(state.focus)}</b>: ${esc(who.slice(0, 6).join(', '))}${who.length > 6 ? ` and ${who.length - 6} more` : ''}.` : state.focus ? `Booth ${esc(state.focus)} isn't labeled on this map.` : 'Pinch or use +/− to zoom. Tap a booth to see who is there.'} ${layer === 'route' ? 'Red pills are must-see stops, amber are if-time.' : ''}</div>`;
     const box = $('#mapbox');
     if (state.mapZoom == null) state.mapZoom = Math.max(1, Math.min(box.clientHeight / (box.clientWidth / m.ar), 3));
     if (pin) state.mapZoom = Math.max(state.mapZoom, day === 1 ? 4 : 3);
-    applyZoom(state.mapZoom, pin ? { x: pin[1], y: pin[2] } : { x: day === 1 ? 0.92 : 0.95, y: 0.6 });
+    applyZoom(state.mapZoom, pin ? { x: pin.x, y: pin.y } : { x: day === 1 ? 0.92 : 0.95, y: 0.6 });
   }
   function applyZoom(z, center) {
     const box = $('#mapbox'), inner = $('#mapinner'); if (!box) return;
@@ -351,19 +455,23 @@
   $('#view-map').addEventListener('click', e => {
     const d = e.target.closest('[data-mday]');
     if (d) { state.mapDay = +d.dataset.mday; state.focus = null; state.mapZoom = null; renderMap(); return; }
+    const ly = e.target.closest('[data-mlayer]');
+    if (ly) {
+      const box = $('#mapbox'), inner = $('#mapinner');
+      const c = { x: (box.scrollLeft + box.clientWidth / 2) / inner.offsetWidth, y: (box.scrollTop + box.clientHeight / 2) / inner.offsetHeight };
+      state.mapLayer = ly.dataset.mlayer; const z = state.mapZoom; renderMap(); applyZoom(z, c); return;
+    }
     const z = e.target.closest('[data-zoom]');
     if (z) { zoomBy(+z.dataset.zoom > 0 ? 1.5 : 1 / 1.5); return; }
     const inner = e.target.closest('#mapinner');
     if (inner && !pinchMoved) {
       const r = inner.getBoundingClientRect();
       const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
-      let best = null, bd = Infinity;
-      for (const [b, p] of Object.entries(D.pins)) {
-        if (p[0] !== state.mapDay) continue;
-        const dd = Math.hypot((p[1] - x) * r.width, (p[2] - y) * r.height);
-        if (dd < bd) { bd = dd; best = b; }
-      }
-      if (best && bd < 40 && EX.some(ex => ex.booth === best)) openBooth(best);
+      const b = boothAt(state.mapDay, x, y, r.width, r.height);
+      if (!b) return;
+      if (state.mapLayer === 'plan') openDirBooth(b);
+      else if (EX.some(ex => ex.booth === b)) openBooth(b);
+      else openDirBooth(b);
     }
   });
   // two-finger pinch zoom inside the map box
@@ -481,7 +589,7 @@
       const tf = timedFor(e);
       callout = `<div class="callout"><b>No booth on the floor</b>${tf.length ? tf.map(t => `${DAY_TAG[t.day] ?? ''} · ${esc(t.time)}: ${esc(t.what)}. ${esc(t.detail)}`).join('<br>') : esc(e.location || e.area || 'See notes below.')}</div>`;
     }
-    const pin = D.pins[e.booth];
+    const pin = locOf(e.booth);
     const v = isVisited(e);
     const others = EX.filter(x => x.booth === e.booth && x.i !== e.i && /^\d+$|^OD/.test(e.booth));
     const kv = [
@@ -493,12 +601,8 @@
       <div class="hero-grid"><div class="bigbooth ${r ? r.kind : ''}"><small>Booth</small>${esc(e.booth === 'AUSAPavilion' ? 'AUSA Pav.' : e.booth)}</div>
       <div><div class="when">${d ? esc(d.title) : 'Off the floor'}</div><div class="when-sub">${d ? esc(d.floor) : esc(e.location || '')}</div><div class="tags">${placeTags(e)}</div></div></div>
       ${callout}
-      <div class="actions">${e.day ? `<button class="btn ${v ? 'done' : 'primary'}" data-check="${e.i}">${v ? '✓ Visited' : 'Mark visited'}</button>` : ''}${pin ? `<button class="btn" data-map="${pin[0]}|${esc(e.booth)}">Show on map</button>` : ''}</div></div>`;
-    if (pin) {
-      const m = MAPS[pin[0]], W = pin[0] === 1 ? 2600 : 1900, H = W / m.ar;
-      html += `<div class="minimap" data-map="${pin[0]}|${esc(e.booth)}"><img src="${m.src}" alt="" style="width:${W}px;left:calc(50% - ${pin[1] * W}px);top:${105 - pin[2] * H}px">
-        <span class="pulse" style="left:50%;top:105px"></span><span class="pin" style="left:50%;top:105px"></span><button class="open">Open map ›</button></div>`;
-    }
+      <div class="actions">${e.day ? `<button class="btn ${v ? 'done' : 'primary'}" data-check="${e.i}">${v ? '✓ Visited' : 'Mark visited'}</button>` : ''}${pin ? `<button class="btn" data-map="${pin.day}|${esc(e.booth)}|route">Show on map</button>` : ''}</div></div>`;
+    if (pin) html += minimap(pin, e.booth, 'route');
     if (kv.length) html += `<div class="section"><h3>Details</h3><dl class="kv">${kv.map(([k, val]) => `<div><dt>${k}</dt><dd>${hl(val, re)}</dd></div>`).join('')}</dl></div>`;
     if (others.length) html += `<div class="section"><h3>Also at booth ${esc(e.booth)} (${others.length})</h3><div class="list">${others.slice(0, 40).map(x => exRow(x, null)).join('')}</div></div>`;
     html += `<div class="section"><h3>Correspondence (${direct.length + ment.length})</h3>`;
@@ -524,7 +628,7 @@
   // the minimap (a div) also carries data-map; let the inner button and the box both open the full map
   $('#sheetBody').addEventListener('click', e => {
     const mm = e.target.closest('.minimap');
-    if (mm) { const [d, b] = mm.dataset.map.split('|'); showOnMap(+d, b); e.stopPropagation(); }
+    if (mm) { const [d, b, layer] = mm.dataset.map.split('|'); showOnMap(+d, b, layer); e.stopPropagation(); }
   });
 
   /* ============================== boot ============================== */
