@@ -138,6 +138,7 @@
   });
   function setView(v) {
     state.view = v;
+    if (v !== 'map') $('#view-map').innerHTML = '';
     document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
     document.querySelectorAll('.view').forEach(s => s.classList.toggle('hidden', s.id !== 'view-' + v));
     $('.search-wrap').classList.toggle('hidden', v === 'route' || v === 'map');
@@ -381,7 +382,7 @@
 
   /* ============================== map ============================== */
   // Both layers share one geometry: the route maps are the plain floor plans with the walk drawn on.
-  const MAPS = { 1: { route: 'map-day1.jpg', plan: 'plan-day1.jpg', ar: 4748 / 1874 }, 2: { route: 'map-day2.jpg', plan: 'plan-day2.jpg', ar: 4797 / 2437 } };
+  const MAPS = { 1: { route: 'map-day1.jpg', plan: 'plan-day1.jpg', ar: 3200 / 1263 }, 2: { route: 'map-day2.jpg', plan: 'plan-day2.jpg', ar: 3200 / 1626 } };
   // Where a booth is: {day, x, y, box?}, from the booth outline on the plan or else its printed number.
   function locOf(booth) {
     const b = D.boxes?.[booth], p = D.pins[booth];
@@ -411,7 +412,7 @@
     const m = MAPS[L.day], W = L.day === 1 ? 2600 : 1900, H = W / m.ar;
     const left = `calc(50% - ${L.x * W}px)`, top = 105 - L.y * H;
     const box = L.box ? `<span class="hlbox" style="left:calc(50% + ${(L.box[0] - L.x) * W}px);top:${105 + (L.box[1] - L.y) * H}px;width:${(L.box[2] - L.box[0]) * W}px;height:${(L.box[3] - L.box[1]) * H}px"></span>` : '';
-    return `<div class="minimap" data-map="${L.day}|${esc(booth)}|${layer}"><img src="${m[layer]}" alt="" style="width:${W}px;left:${left};top:${top}px">
+    return `<div class="minimap" data-map="${L.day}|${esc(booth)}|${layer}"><img src="${m[layer]}" alt="" decoding="async" style="width:${W}px;left:${left};top:${top}px">
       ${box}<span class="pulse" style="left:50%;top:105px"></span><span class="pin" style="left:50%;top:105px"></span><button class="open">Open map ›</button></div>`;
   }
   function showOnMap(day, booth, layer) {
@@ -428,7 +429,7 @@
     $('#view-map').innerHTML = `<div class="seg">${[['route', 'My route'], ['plan', 'Floor plan (all booths)']].map(([k, l]) => `<button data-mlayer="${k}" class="${k === layer ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div class="map-tools"><div class="seg">${[1, 2].map(k => `<button data-mday="${k}" class="${k === day ? 'on' : ''}">${k === 1 ? 'Day 1 · A-C' : 'Day 2 · D-E'}</button>`).join('')}</div>
       <button class="zbtn" data-zoom="-1" aria-label="Zoom out">−</button><button class="zbtn" data-zoom="1" aria-label="Zoom in">+</button></div>
-      <div class="mapbox" id="mapbox"><div class="mapinner" id="mapinner"><img src="${m[layer]}" alt="${layer === 'route' ? 'Floor plan with your route' : 'Floor plan'}" draggable="false">
+      <div class="mapbox" id="mapbox"><div class="mapinner" id="mapinner"><img src="${m[layer]}" alt="${layer === 'route' ? 'Floor plan with your route' : 'Floor plan'}" draggable="false" decoding="async">
       ${pin ? marks(pin, true) : ''}</div></div>
       <div class="map-cap">${pin ? `<b>Booth ${esc(state.focus)}</b>: ${esc(who.slice(0, 6).join(', '))}${who.length > 6 ? ` and ${who.length - 6} more` : ''}.` : state.focus ? `Booth ${esc(state.focus)} isn't labeled on this map.` : 'Pinch or use +/− to zoom. Tap a booth to see who is there.'} ${layer === 'route' ? 'Red pills are must-see stops, amber are if-time.' : ''}</div>`;
     const box = $('#mapbox');
@@ -515,10 +516,10 @@
 
   /* ============================== detail sheet ============================== */
   const stack = [];
-  let useHistory = true;
+  let useHistory = window.self === window.top;
   function pushSheet(title, render) {
     stack.push({ title, render });
-    try { history.pushState({ sheet: stack.length }, ''); useHistory = true; } catch { useHistory = false; }
+    if (useHistory) { try { history.pushState({ sheet: stack.length }, ''); } catch { useHistory = false; } }
     showTop();
   }
   function showTop() {
@@ -532,12 +533,13 @@
     const n = all ? stack.length : 1;
     if (useHistory) { try { history.go(-n); return; } catch { /* fall through */ } }
     stack.splice(stack.length - n, n);
-    if (stack.length) showTop(); else { $('#sheet').classList.add('hidden'); rerender(); }
+    if (stack.length) showTop(); else { $('#sheet').classList.add('hidden'); $('#sheetBody').innerHTML = ''; rerender(); }
   }
   window.addEventListener('popstate', () => {
+    if (!useHistory) return;
     const want = history.state?.sheet || 0;
     while (stack.length > want) stack.pop();
-    if (stack.length) showTop(); else { $('#sheet').classList.add('hidden'); rerender(); }
+    if (stack.length) showTop(); else { $('#sheet').classList.add('hidden'); $('#sheetBody').innerHTML = ''; rerender(); }
   });
   $('#sheetBack').addEventListener('click', () => closeSheet(false));
 
@@ -631,8 +633,18 @@
     if (mm) { const [d, b, layer] = mm.dataset.map.split('|'); showOnMap(+d, b, layer); e.stopPropagation(); }
   });
 
+  document.addEventListener('error', e => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement)) return;
+    const host = img.closest('.mapinner, .minimap'); if (!host || host.querySelector('.map-retry')) return;
+    const b = document.createElement('button');
+    b.className = 'map-retry'; b.textContent = "Map didn't load. Tap to retry.";
+    b.addEventListener('click', ev => { ev.stopPropagation(); b.remove(); img.src = img.src.split('?')[0] + '?r=' + Date.now(); });
+    host.appendChild(b);
+  }, true);
+
   /* ============================== boot ============================== */
-  try { history.replaceState({ sheet: 0 }, ''); } catch { useHistory = false; }
+  if (useHistory) { try { history.replaceState({ sheet: 0 }, ''); } catch { useHistory = false; } }
   const saved = LS.get('ausa-pass', null);
   if (saved) { $('#lock').classList.add('hidden'); unlock(saved, true); }
 })();

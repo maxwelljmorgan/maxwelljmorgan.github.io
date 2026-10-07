@@ -163,7 +163,7 @@ main { padding: 10px 12px calc(76px + var(--safe-b)); max-width: 760px; margin: 
 .map-tools { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .map-tools .seg { flex: 1; margin: 0; }
 .zbtn { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 20px; font-weight: 700; }
-.mapbox { position: relative; overflow: auto; border-radius: 12px; background: #fff; box-shadow: var(--shadow); height: calc(100vh - 270px - var(--safe-b)); height: calc(100dvh - 270px - var(--safe-b)); -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+.mapbox { position: relative; overflow: auto; border-radius: 12px; background: #fff; box-shadow: var(--shadow); height: max(320px, calc(100vh - 270px - var(--safe-b))); height: max(320px, calc(100dvh - 270px - var(--safe-b))); -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
 .mapinner { position: relative; transform-origin: 0 0; }
 .mapinner img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
 .pin {
@@ -175,6 +175,8 @@ main { padding: 10px 12px calc(76px + var(--safe-b)); max-width: 760px; margin: 
 @keyframes pulse { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
 @keyframes drop { from { transform: translateY(-18px); opacity: 0; } to { transform: none; opacity: 1; } }
 .hlbox { position: absolute; border: 3px solid #00a2ff; background: rgba(0, 162, 255, .18); border-radius: 3px; pointer-events: none; box-shadow: 0 0 0 2px rgba(255, 255, 255, .8); }
+.mapbox::before, .minimap::before { content: "Loading map…"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--muted); font-size: 13px; }
+.map-retry { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; border: 0; border-radius: 10px; padding: 10px 14px; background: var(--navy); color: #fff; font-weight: 600; }
 .map-cap { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
 
 /* ---------------- sheet ---------------- */

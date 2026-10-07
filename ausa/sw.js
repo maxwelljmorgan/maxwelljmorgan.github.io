@@ -1,5 +1,5 @@
 /* Offline cache for the AUSA floor-walk app (convention-center Wi-Fi is unreliable). */
-const CACHE = 'ausa-walk-v2';
+const CACHE = 'ausa-walk-v3';
 const ASSETS = ['./', 'index.html', 'app.css', 'app.js', 'data.enc', 'map-day1.jpg', 'map-day2.jpg', 'plan-day1.jpg', 'plan-day2.jpg', 'icon.svg', 'manifest.json'];
 
 self.addEventListener('install', e => {
