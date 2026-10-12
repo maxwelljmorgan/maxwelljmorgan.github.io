@@ -123,6 +123,7 @@ main { padding: 10px 12px calc(76px + var(--safe-b)); max-width: 760px; margin: 
 .tag.mail { background: #efe5ff; color: #5b2d9c; }
 .tag.done { background: #e2f3e4; color: #1d5b22; }
 .tag.mine { background: #fde3e3; color: #a31515; }
+.tag.new { background: #e2f3e4; color: #1d5b22; }
 @media (prefers-color-scheme: dark) {
   .tag.d1 { background: #1c2b4a; color: #a9c3ff; }
   .tag.d2 { background: #17301b; color: #9ad69f; }

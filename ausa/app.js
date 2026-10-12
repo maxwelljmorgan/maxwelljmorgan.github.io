@@ -143,7 +143,7 @@
     document.querySelectorAll('.view').forEach(s => s.classList.toggle('hidden', s.id !== 'view-' + v));
     $('.search-wrap').classList.toggle('hidden', v === 'route' || v === 'map');
     $('#chips').classList.toggle('hidden', v !== 'search');
-    $('#q').placeholder = v === 'mail' ? 'Search all 65 emails' : v === 'dir' ? `Any of ${DIR.length} exhibitors, or a booth number` : 'Search your companies, contacts, notes';
+    $('#q').placeholder = v === 'mail' ? `Search all ${D.emails.length} emails` : v === 'dir' ? `Any of ${DIR.length} exhibitors, or a booth number` : 'Search your companies, contacts, notes';
     ({ search: renderSearch, route: renderRoute, dir: renderDir, map: renderMap, mail: renderMail })[v]();
     window.scrollTo(0, 0);
   }
@@ -496,7 +496,7 @@
   /* ============================== emails tab ============================== */
   function mailCard(m, re, open) {
     const links = m.linked.map(i => EX[i]);
-    return `<details class="mail"${open ? ' open' : ''}><summary><span class="mail-num">#${m.n}</span><div class="mail-subj">${hl(m.subject, re)}</div>
+    return `<details class="mail"${open ? ' open' : ''}><summary><span class="mail-num">#${m.n}${m.new ? ' <span class="tag new">New 10/12</span>' : ''}</span><div class="mail-subj">${hl(m.subject, re)}</div>
       <div class="mail-from">${esc(m.fromName)}${m.senderType ? ' · ' + esc(m.senderType) : ''}</div>${m.takeaway ? `<div class="mail-take">${hl(m.takeaway, re)}</div>` : ''}</summary>
       <div class="mail-hdr">From: ${esc(m.fromName)}${m.fromAddr ? ' &lt;' + esc(m.fromAddr) + '&gt;' : ''}<br>To: ${esc(m.to)}${m.cc ? '<br>CC: ' + esc(m.cc) : ''}${m.represents && m.represents !== 'n/a' ? '<br>Re: ' + esc(m.represents) : ''}</div>
       ${links.length ? `<div class="mail-links" style="padding-top:8px">${links.map(e => `<button class="linkchip" data-ex="${e.i}">${esc(e.booth)} · ${esc(e.name)}</button>`).join('')}</div>` : ''}
@@ -509,8 +509,9 @@
   }
   function renderMail() {
     const toks = tokens(state.q), re = hlRegex(toks);
-    const list = D.emails.filter(m => toks.every(t => m.hay.includes(t)));
-    $('#view-mail').innerHTML = `<div class="meta">${list.length} of ${D.emails.length} emails${toks.length ? ' match' : ''} · tap to read; company chips open the exhibitor</div>` +
+    const list = D.emails.filter(m => toks.every(t => m.hay.includes(t))).sort((a, b) => (b.new - a.new) || (a.n - b.n));
+    const nNew = D.emails.filter(m => m.new).length;
+    $('#view-mail').innerHTML = `<div class="meta">${list.length} of ${D.emails.length} emails${toks.length ? ' match' : ''}${nNew ? ` · ${nNew} new in the 10/12 update, listed first` : ''} · tap to read; company chips open the exhibitor</div>` +
       (list.map(m => mailCard(m, re, false)).join('') || '<div class="empty">No emails match.</div>');
   }
 
