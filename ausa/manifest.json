@@ -1,0 +1,14 @@
+{
+  "name": "AUSA 2026 Floor Walk",
+  "short_name": "AUSA Walk",
+  "description": "Find each exhibitor's booth, day and route stop, with related email correspondence.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f5f9",
+  "theme_color": "#1f3864",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
